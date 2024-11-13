@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
 
 # Initialize mock data in session state if not already initialized
 if "inventory_data" not in st.session_state:
@@ -54,11 +52,13 @@ if page == "Inventory":
     sku = st.selectbox("Select SKU:", inventory_df["SKU"])
     adjustment = st.number_input("Adjustment Quantity:", value=0)
     if st.button("Adjust Stock"):
+        # Update stock level in the session state directly
         index = inventory_df[inventory_df["SKU"] == sku].index[0]
         st.session_state.inventory_data["Stock Level"][index] += adjustment
         st.success(f"Stock level for {sku} updated.")
+        # Refresh the displayed inventory data
         inventory_df = pd.DataFrame(st.session_state.inventory_data)
-        st.dataframe(inventory_df)
+        st.dataframe(inventory_df)  # Refresh table with updated data
 
 # Orders Page
 elif page == "Orders":
@@ -73,43 +73,22 @@ elif page == "Orders":
     order_id = st.selectbox("Select Order ID:", orders_df["Order ID"])
     new_status = st.selectbox("New Status:", ["Pending", "Shipped", "Delivered"])
     if st.button("Update Status"):
+        # Update order status in the session state directly
         index = orders_df[orders_df["Order ID"] == order_id].index[0]
         st.session_state.orders_data["Status"][index] = new_status
         st.success(f"Order {order_id} status updated to {new_status}.")
+        # Refresh the displayed orders data
         orders_df = pd.DataFrame(st.session_state.orders_data)
-        st.dataframe(orders_df)
+        st.dataframe(orders_df)  # Refresh table with updated data
 
 # Reports Page
 elif page == "Reports":
     st.header("Sales and Inventory Reports")
 
     # Sales Report
-    st.subheader("Sales Trends")
-    # Generate some sample sales data
-    dates = pd.date_range(start="2023-01-01", periods=12, freq="M")
-    sales = np.random.randint(1000, 5000, size=12)
-    sales_data = pd.DataFrame({"Date": dates, "Sales": sales})
-    st.line_chart(sales_data.set_index("Date"))
+    st.subheader("Sales Report")
+    st.write("Sales trends, performance metrics, and demand forecasting.")
 
-    # Inventory Turnover
-    st.subheader("Inventory Turnover")
-    turnover = np.random.rand(3) * 10
-    turnover_data = pd.DataFrame({
-        "SKU": inventory_df["SKU"],
-        "Product": inventory_df["Product"],
-        "Turnover Rate": turnover
-    })
-    st.bar_chart(turnover_data.set_index("Product")["Turnover Rate"])
-
-    # Product Performance
-    st.subheader("Product Performance Metrics")
-    performance_data = {
-        "Product": ["Widget A", "Widget B", "Widget C"],
-        "Sales": [150, 120, 300],
-        "Returns": [5, 10, 8],
-        "Profit Margin": [0.35, 0.25, 0.45]
-    }
-    performance_df = pd.DataFrame(performance_data)
-    st.table(performance_df)
-
-    st.write("These reports give insights into sales trends, inventory turnover, and individual product performance, helping managers make informed decisions.")
+    # Inventory Report
+    st.subheader("Inventory Report")
+    st.write("Stock levels, low stock history, and supplier details.")
