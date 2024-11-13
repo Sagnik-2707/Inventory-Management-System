@@ -1,24 +1,27 @@
 import streamlit as st
 import pandas as pd
 
-# Mock data for inventory and orders
-inventory_data = {
-    "SKU": ["A123", "B456", "C789"],
-    "Product": ["Widget A", "Widget B", "Widget C"],
-    "Category": ["Widgets", "Gadgets", "Widgets"],
-    "Stock Level": [50, 20, 100],
-    "Threshold": [10, 15, 30]
-}
-orders_data = {
-    "Order ID": [1, 2, 3],
-    "Product": ["Widget A", "Widget B", "Widget C"],
-    "Quantity": [5, 10, 20],
-    "Status": ["Shipped", "Pending", "Delivered"]
-}
+# Initialize mock data in session state if not already initialized
+if "inventory_data" not in st.session_state:
+    st.session_state.inventory_data = {
+        "SKU": ["A123", "B456", "C789"],
+        "Product": ["Widget A", "Widget B", "Widget C"],
+        "Category": ["Widgets", "Gadgets", "Widgets"],
+        "Stock Level": [50, 20, 100],
+        "Threshold": [10, 15, 30]
+    }
 
-# Load data into DataFrames
-inventory_df = pd.DataFrame(inventory_data)
-orders_df = pd.DataFrame(orders_data)
+if "orders_data" not in st.session_state:
+    st.session_state.orders_data = {
+        "Order ID": [1, 2, 3],
+        "Product": ["Widget A", "Widget B", "Widget C"],
+        "Quantity": [5, 10, 20],
+        "Status": ["Shipped", "Pending", "Delivered"]
+    }
+
+# Convert dictionaries to DataFrames for easy manipulation
+inventory_df = pd.DataFrame(st.session_state.inventory_data)
+orders_df = pd.DataFrame(st.session_state.orders_data)
 
 # Streamlit app layout
 st.title("Online Inventory Management System (OIMS)")
@@ -49,8 +52,13 @@ if page == "Inventory":
     sku = st.selectbox("Select SKU:", inventory_df["SKU"])
     adjustment = st.number_input("Adjustment Quantity:", value=0)
     if st.button("Adjust Stock"):
-        inventory_df.loc[inventory_df["SKU"] == sku, "Stock Level"] += adjustment
+        # Update stock level in the session state directly
+        index = inventory_df[inventory_df["SKU"] == sku].index[0]
+        st.session_state.inventory_data["Stock Level"][index] += adjustment
         st.success(f"Stock level for {sku} updated.")
+        # Refresh the displayed inventory data
+        inventory_df = pd.DataFrame(st.session_state.inventory_data)
+        st.dataframe(inventory_df)  # Refresh table with updated data
 
 # Orders Page
 elif page == "Orders":
@@ -65,8 +73,13 @@ elif page == "Orders":
     order_id = st.selectbox("Select Order ID:", orders_df["Order ID"])
     new_status = st.selectbox("New Status:", ["Pending", "Shipped", "Delivered"])
     if st.button("Update Status"):
-        orders_df.loc[orders_df["Order ID"] == order_id, "Status"] = new_status
+        # Update order status in the session state directly
+        index = orders_df[orders_df["Order ID"] == order_id].index[0]
+        st.session_state.orders_data["Status"][index] = new_status
         st.success(f"Order {order_id} status updated to {new_status}.")
+        # Refresh the displayed orders data
+        orders_df = pd.DataFrame(st.session_state.orders_data)
+        st.dataframe(orders_df)  # Refresh table with updated data
 
 # Reports Page
 elif page == "Reports":
@@ -79,5 +92,3 @@ elif page == "Reports":
     # Inventory Report
     st.subheader("Inventory Report")
     st.write("Stock levels, low stock history, and supplier details.")
-
-# Run the app with: streamlit run oims_app.py
