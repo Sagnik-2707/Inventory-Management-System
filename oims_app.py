@@ -1,143 +1,138 @@
 import streamlit as st
-import sqlite3
-import hashlib
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
+import plotly.express as px
 
-# Helper function to hash passwords
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# Sample data for demonstration purposes
+# Normally this would be connected to a database
 
-# Initialize SQLite database
-conn = sqlite3.connect('users.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('CREATE TABLE IF NOT EXISTS users (username TEXT, password TEXT)')
-conn.commit()
+# Dummy data for inventory
+inventory_data = {
+    'SKU': ['P001', 'P002', 'P003', 'P004'],
+    'Product Name': ['Laptop', 'Mouse', 'Keyboard', 'Monitor'],
+    'Category': ['Electronics', 'Electronics', 'Electronics', 'Electronics'],
+    'Stock': [20, 50, 10, 5],
+    'Threshold': [10, 20, 5, 10],
+    'Price': [800, 20, 30, 150]
+}
 
-# Registration and Login Functions
-def register_user(username, password):
-    hashed_password = hash_password(password)
-    cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
-    conn.commit()
+# Dummy data for suppliers
+suppliers_data = {
+    'Supplier ID': ['S001', 'S002', 'S003'],
+    'Name': ['TechSupplies', 'OfficeGoods', 'HomeOffice'],
+    'Contact': ['123-456-7890', '987-654-3210', '555-555-5555'],
+    'Product Supplied': ['Laptops, Accessories', 'Mice, Keyboards', 'Monitors']
+}
 
-def login_user(username, password):
-    hashed_password = hash_password(password)
-    cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hashed_password))
-    return cursor.fetchone()
+# Dummy data for orders
+orders_data = {
+    'Order ID': ['O001', 'O002', 'O003'],
+    'Product SKU': ['P001', 'P002', 'P003'],
+    'Quantity': [2, 5, 3],
+    'Status': ['Shipped', 'Pending', 'Delivered']
+}
 
-# Initialize session state for login
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# Dummy sales data for reporting
+sales_data = {
+    'Product': ['Laptop', 'Mouse', 'Keyboard', 'Monitor'],
+    'Units Sold': [150, 300, 200, 100],
+    'Profit': [120000, 6000, 6000, 15000]
+}
 
-# Login and Registration Interface
-def login_screen():
-    st.title("Welcome to Inventory Management Dashboard")
-    menu = st.selectbox("Choose Action", ["Login", "Register"])
+# Helper functions to display various features
 
-    if menu == "Register":
-        st.subheader("Create a New Account")
-        new_username = st.text_input("Username", key="register_username")
-        new_password = st.text_input("Password", type="password", key="register_password")
-        if st.button("Register"):
-            if new_username and new_password:
-                cursor.execute("SELECT * FROM users WHERE username = ?", (new_username,))
-                if cursor.fetchone():
-                    st.warning("Username already taken. Please choose another username.")
-                else:
-                    register_user(new_username, new_password)
-                    st.success("Registration successful! You can now log in.")
-            else:
-                st.warning("Please fill out both fields.")
+def display_inventory():
+    df_inventory = pd.DataFrame(inventory_data)
+    st.write("### Inventory")
+    st.dataframe(df_inventory)
+    
+    low_stock = df_inventory[df_inventory['Stock'] < df_inventory['Threshold']]
+    st.write(f"### Low Stock Alert ({len(low_stock)} items)")
+    st.dataframe(low_stock)
 
-    elif menu == "Login":
-        st.subheader("Log in to Your Account")
-        username = st.text_input("Username", key="login_username")
-        password = st.text_input("Password", type="password", key="login_password")
+def update_inventory():
+    st.write("### Update Inventory")
+    sku = st.selectbox("Select Product", inventory_data['SKU'])
+    action = st.radio("Action", ['Add Stock', 'Remove Stock'])
+    quantity = st.number_input("Quantity", min_value=1, step=1)
+    
+    if st.button('Update Inventory'):
+        if action == 'Add Stock':
+            inventory_data['Stock'][inventory_data['SKU'].index(sku)] += quantity
+        else:
+            inventory_data['Stock'][inventory_data['SKU'].index(sku)] -= quantity
+        st.success(f"Inventory Updated! {action} {quantity} units of {sku}")
+
+def product_categorization():
+    st.write("### Product Categorization")
+    category = st.selectbox("Select Category", ['Electronics', 'Furniture', 'Clothing'])
+    filtered_products = [prod for prod in inventory_data['Product Name'] if category in prod]
+    st.write(f"Products in {category} category:")
+    st.write(filtered_products)
+
+def order_tracking():
+    st.write("### Track Order")
+    order_id = st.text_input("Enter Order ID")
+    order = next((order for order in orders_data['Order ID'] if order == order_id), None)
+    
+    if order:
+        status = next(order['Status'] for order in orders_data if order['Order ID'] == order_id)
+        st.write(f"Order {order_id} is currently {status}")
+    else:
+        st.warning("Order not found")
+
+def supplier_database():
+    df_suppliers = pd.DataFrame(suppliers_data)
+    st.write("### Supplier Database")
+    st.dataframe(df_suppliers)
+
+def reporting_and_analytics():
+    st.write("### Reporting & Analytics")
+    df_sales = pd.DataFrame(sales_data)
+    fig = px.bar(df_sales, x='Product', y='Profit', title="Profit by Product")
+    st.plotly_chart(fig)
+
+# Main app layout
+
+def main():
+    st.set_page_config(page_title="Inventory Management System", layout="wide")
+    
+    st.title("Online Inventory Management System")
+    
+    menu = ["Login", "Register"]
+    choice = st.sidebar.selectbox("Select Option", menu)
+    
+    if choice == "Login":
+        st.subheader("Login")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type='password')
+        
         if st.button("Login"):
-            if login_user(username, password):
+            if username == "admin" and password == "admin":
                 st.session_state.logged_in = True
-                st.session_state.username = username
-                st.success(f"Welcome back, {username}!")
+                st.sidebar.success("Login Successful")
             else:
-                st.error("Incorrect username or password.")
+                st.sidebar.error("Invalid Credentials")
+    
+    if 'logged_in' in st.session_state and st.session_state.logged_in:
+        dashboard = ["Dashboard", "Inventory", "Orders", "Suppliers", "Reports"]
+        selection = st.sidebar.selectbox("Select Option", dashboard)
+        
+        if selection == "Dashboard":
+            st.subheader("Welcome to the Dashboard!")
+            st.write("Here you can manage inventory, track orders, view reports, and more.")
+        
+        if selection == "Inventory":
+            display_inventory()
+            update_inventory()
+        
+        if selection == "Orders":
+            order_tracking()
+        
+        if selection == "Suppliers":
+            supplier_database()
+        
+        if selection == "Reports":
+            reporting_and_analytics()
 
-# Main Dashboard after Login
-def main_dashboard():
-    # KPI section at the top
-    st.title("🗃️ Inventory Management Dashboard")
-    col1, col2, col3 = st.columns(3)
-
-    # Initialize mock data in session state if not already initialized
-    if "inventory_data" not in st.session_state:
-        st.session_state.inventory_data = {
-            "SKU": ["A123", "B456", "C789"],
-            "Product": ["Widget A", "Widget B", "Widget C"],
-            "Category": ["Widgets", "Gadgets", "Widgets"],
-            "Stock Level": [50, 20, 100],
-            "Threshold": [10, 15, 30]
-        }
-
-    if "orders_data" not in st.session_state:
-        st.session_state.orders_data = {
-            "Order ID": [1, 2, 3],
-            "Product": ["Widget A", "Widget B", "Widget C"],
-            "Quantity": [5, 10, 20],
-            "Status": ["Shipped", "Pending", "Delivered"]
-        }
-
-    # Convert dictionaries to DataFrames for easy manipulation
-    inventory_df = pd.DataFrame(st.session_state.inventory_data)
-    orders_df = pd.DataFrame(st.session_state.orders_data)
-
-    # Display KPI boxes at the top of the dashboard
-    total_stock = inventory_df["Stock Level"].sum()
-    low_stock_count = inventory_df[inventory_df["Stock Level"] < inventory_df["Threshold"]].shape[0]
-    pending_orders = orders_df[orders_df["Status"] == "Pending"].shape[0]
-
-    col1.metric("📦 Total Stock", total_stock)
-    col2.metric("⚠️ Low Stock Items", low_stock_count)
-    col3.metric("📋 Pending Orders", pending_orders)
-
-    # Sidebar for navigation with icons
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Select a page:", ["📦 Inventory", "📑 Orders", "📈 Reports"])
-    if st.sidebar.button("Logout"):
-        st.session_state.logged_in = False
-        st.experimental_rerun()
-
-    # Inventory Page
-    if page == "📦 Inventory":
-        st.header("Inventory Management")
-
-        # Display inventory data in an expander
-        with st.expander("Current Inventory", expanded=True):
-            st.dataframe(inventory_df)
-
-        # Low Stock Alerts in an expander
-        with st.expander("Low Stock Alerts", expanded=True):
-            low_stock = inventory_df[inventory_df["Stock Level"] < inventory_df["Threshold"]]
-            if not low_stock.empty:
-                st.warning("🚨 Alert! The following items are below the threshold stock level:")
-                st.table(low_stock[["SKU", "Product", "Stock Level", "Threshold"]])
-            else:
-                st.success("All items are sufficiently stocked.")
-
-        # Stock Adjustment
-        st.subheader("Adjust Stock Levels")
-        sku = st.selectbox("Select SKU:", inventory_df["SKU"])
-        adjustment = st.number_input("Adjustment Quantity:", value=0)
-        if st.button("Adjust Stock"):
-            # Update stock level in the session state directly
-            index = inventory_df[inventory_df["SKU"] == sku].index[0]
-            st.session_state.inventory_data["Stock Level"][index] += adjustment
-            st.success(f"Stock level for {sku} updated.")
-
-            # Refresh the displayed inventory data
-            inventory_df = pd.DataFrame(st.session_state.inventory_data)
-            st.dataframe(inventory_df)  # Refresh table with updated data
-
-    # Orders Page
-    elif page == "📑 Orders":
-        st.header("Order Processing")
-
+if __name__ == '__main__':
+    main()
