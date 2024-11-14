@@ -53,6 +53,8 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.username = username
             st.success(f"Welcome {username}!")
+            # Explicit rerun after login
+            st.experimental_rerun()
         else:
             st.error("Invalid username or password.")
 
@@ -60,7 +62,7 @@ if not st.session_state.logged_in:
     if st.button("Register New User", key="register_button"):
         st.session_state.logged_in = False
         st.session_state.username = ""
-        # Redirect to registration page
+        # Trigger rerun to show registration form
         st.experimental_rerun()
 
 # Registration Page
@@ -78,8 +80,8 @@ if not st.session_state.logged_in and st.button("Register New User", key="regist
                 st.success(f"User {new_username} registered successfully!")
                 st.session_state.logged_in = True
                 st.session_state.username = new_username
-                # No need to rerun manually
-                st.experimental_rerun()
+                # After successful registration, automatically log in
+                st.experimental_rerun()  # Trigger rerun to update the session state
             else:
                 st.error("Username already exists!")
     else:
