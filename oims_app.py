@@ -60,6 +60,7 @@ if not st.session_state.logged_in:
     if st.button("Register New User", key="register_button"):
         st.session_state.logged_in = False
         st.session_state.username = ""
+        # Redirect to registration page
         st.experimental_rerun()
 
 # Registration Page
@@ -77,6 +78,7 @@ if not st.session_state.logged_in and st.button("Register New User", key="regist
                 st.success(f"User {new_username} registered successfully!")
                 st.session_state.logged_in = True
                 st.session_state.username = new_username
+                # No need to rerun manually
                 st.experimental_rerun()
             else:
                 st.error("Username already exists!")
