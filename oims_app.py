@@ -48,7 +48,7 @@ if not st.session_state.logged_in:
     password = st.text_input("Password", type="password")
 
     # Authentication
-    if st.button("Login"):
+    if st.button("Login", key="login_button"):
         if username in users_db and users_db[username] == hash_password(password):
             st.session_state.logged_in = True
             st.session_state.username = username
@@ -57,13 +57,13 @@ if not st.session_state.logged_in:
             st.error("Invalid username or password.")
 
     # Registration Link
-    if st.button("Register New User"):
+    if st.button("Register New User", key="register_button"):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.experimental_rerun()
 
 # Registration Page
-if not st.session_state.logged_in and st.button("Register New User"):
+if not st.session_state.logged_in and st.button("Register New User", key="register_button_2"):
     st.subheader("Register New User")
 
     new_username = st.text_input("New Username")
@@ -71,7 +71,7 @@ if not st.session_state.logged_in and st.button("Register New User"):
     confirm_password = st.text_input("Confirm Password", type="password")
 
     if new_password == confirm_password:
-        if st.button("Register"):
+        if st.button("Register", key="register_submit"):
             if new_username not in users_db:
                 users_db[new_username] = hash_password(new_password)
                 st.success(f"User {new_username} registered successfully!")
@@ -140,5 +140,3 @@ if st.session_state.logged_in:
         # Inventory Report
         st.subheader("Inventory Report")
         st.write("Stock levels, low stock history, and supplier details.")
-
-# Run the app with: streamlit run oims_app.py
