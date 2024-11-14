@@ -1,146 +1,213 @@
 import streamlit as st
-import pandas as pd
-import hashlib
+import sqlite3
+from datetime import datetime
+from hashlib import sha256
 
-# Mock data for inventory and orders
-inventory_data = {
-    "SKU": ["A123", "B456", "C789"],
-    "Product": ["Widget A", "Widget B", "Widget C"],
-    "Category": ["Widgets", "Gadgets", "Widgets"],
-    "Stock Level": [50, 20, 100],
-    "Threshold": [10, 15, 30]
-}
-orders_data = {
-    "Order ID": [1, 2, 3],
-    "Product": ["Widget A", "Widget B", "Widget C"],
-    "Quantity": [5, 10, 20],
-    "Status": ["Shipped", "Pending", "Delivered"]
-}
+# Database setup
+def init_db():
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    
+    # User table
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, 
+                    username TEXT, 
+                    password TEXT)''')
+    
+    # Inventory table
+    c.execute('''CREATE TABLE IF NOT EXISTS inventory (
+                    item_id INTEGER PRIMARY KEY, 
+                    item_name TEXT, 
+                    stock INTEGER, 
+                    price REAL, 
+                    supplier_id INTEGER)''')
+    
+    # Orders table
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+                    order_id INTEGER PRIMARY KEY, 
+                    item_id INTEGER, 
+                    quantity INTEGER, 
+                    order_status TEXT, 
+                    delivery_status TEXT, 
+                    date TEXT)''')
+    
+    # Suppliers table
+    c.execute('''CREATE TABLE IF NOT EXISTS suppliers (
+                    supplier_id INTEGER PRIMARY KEY, 
+                    supplier_name TEXT, 
+                    contact_info TEXT)''')
+    
+    conn.commit()
+    conn.close()
 
-# Load data into DataFrames
-inventory_df = pd.DataFrame(inventory_data)
-orders_df = pd.DataFrame(orders_data)
+def register_user(username, password):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
+    conn.commit()
+    conn.close()
 
-# Function to hash passwords
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+def login_user(username, password):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
+    data = c.fetchone()
+    conn.close()
+    return data
 
-# User credentials (in a real app, store this securely)
-users_db = {
-    "admin": hash_password("admin123"),
-    "user1": hash_password("password1")
-}
+# Inventory Management Functionalities
 
-# Streamlit app layout
-st.title("Online Inventory Management System (OIMS)")
-
-# Session state to track login status
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-
-# Login Page
-if not st.session_state.logged_in:
-    st.subheader("Login")
-
-    # Login Form
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    # Authentication
-    if st.button("Login", key="login_button"):
-        if username in users_db and users_db[username] == hash_password(password):
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.success(f"Welcome {username}!")
-            # Explicit rerun after login
-            st.experimental_rerun()
-        else:
-            st.error("Invalid username or password.")
-
-    # Registration Link
-    if st.button("Register New User", key="register_button"):
-        st.session_state.logged_in = False
-        st.session_state.username = ""
-        # Trigger rerun to show registration form
-        st.experimental_rerun()
-
-# Registration Page
-if not st.session_state.logged_in and st.button("Register New User", key="register_button_2"):
-    st.subheader("Register New User")
-
-    new_username = st.text_input("New Username")
-    new_password = st.text_input("New Password", type="password")
-    confirm_password = st.text_input("Confirm Password", type="password")
-
-    if new_password == confirm_password:
-        if st.button("Register", key="register_submit"):
-            if new_username not in users_db:
-                users_db[new_username] = hash_password(new_password)
-                st.success(f"User {new_username} registered successfully!")
-                st.session_state.logged_in = True
-                st.session_state.username = new_username
-                # After successful registration, automatically log in
-                st.experimental_rerun()  # Trigger rerun to update the session state
-            else:
-                st.error("Username already exists!")
+def low_stock_alerts(threshold=10):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT item_name, stock FROM inventory WHERE stock < ?", (threshold,))
+    data = c.fetchall()
+    conn.close()
+    
+    st.subheader("Low Stock Alerts")
+    if data:
+        for item, stock in data:
+            st.write(f"Item: {item}, Stock: {stock}")
     else:
-        st.error("Passwords do not match.")
+        st.write("No items are below the threshold stock level.")
 
-# After login or registration, show the app content
-if st.session_state.logged_in:
+def update_inventory(item_id, stock, price):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("UPDATE inventory SET stock = ?, price = ? WHERE item_id = ?", (stock, price, item_id))
+    conn.commit()
+    conn.close()
+    st.success("Inventory updated successfully.")
+
+def order_tracking(order_id):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,))
+    data = c.fetchone()
+    conn.close()
+    
+    st.subheader("Order Tracking")
+    if data:
+        st.write(f"Order ID: {data[0]}, Item ID: {data[1]}, Quantity: {data[2]}, Status: {data[3]}, Delivery Status: {data[4]}, Date: {data[5]}")
+    else:
+        st.warning("Order not found.")
+
+def reporting_analytics():
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT item_name, SUM(stock) FROM inventory GROUP BY item_name")
+    stock_data = c.fetchall()
+    conn.close()
+    
+    st.subheader("Inventory Stock Summary")
+    for item_name, total_stock in stock_data:
+        st.write(f"Item: {item_name}, Total Stock: {total_stock}")
+    st.write("---")
+
+def display_supplier_details():
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT supplier_name, contact_info FROM suppliers")
+    data = c.fetchall()
+    conn.close()
+    
+    st.subheader("Supplier Details")
+    for supplier, contact in data:
+        st.write(f"Supplier: {supplier}, Contact Info: {contact}")
+
+def delivery_tracking(order_id):
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT delivery_status FROM orders WHERE order_id = ?", (order_id,))
+    data = c.fetchone()
+    conn.close()
+    
+    st.subheader("Delivery Tracking")
+    if data:
+        st.write(f"Delivery Status: {data[0]}")
+    else:
+        st.warning("Order not found.")
+
+# Streamlit App
+
+def main():
+    st.title("Online Inventory Management System")
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Select a page:", ["Inventory", "Orders", "Reports"])
+    menu = ["Login", "Register", "Dashboard"]
+    choice = st.sidebar.selectbox("Menu", menu)
 
-    # Inventory Page
-    if page == "Inventory":
-        st.header("Inventory Management")
+    if choice == "Login":
+        st.subheader("Login Section")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        if st.button("Login"):
+            user = login_user(username, password)
+            if user:
+                st.success(f"Welcome {username}!")
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+            else:
+                st.warning("Incorrect Username/Password")
 
-        # Display inventory data
-        st.subheader("Current Inventory")
-        st.dataframe(inventory_df)
+    elif choice == "Register":
+        st.subheader("Create a New Account")
+        new_user = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
+        if st.button("Register"):
+            register_user(new_user, new_password)
+            st.success("You have successfully created an account!")
+            st.info("Go to Login Menu to login")
 
-        # Low Stock Alerts
-        st.subheader("Low Stock Alerts")
-        low_stock = inventory_df[inventory_df["Stock Level"] < inventory_df["Threshold"]]
-        if not low_stock.empty:
-            st.warning("The following items are low in stock:")
-            st.table(low_stock)
+    elif choice == "Dashboard":
+        if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+            st.warning("Please login first.")
         else:
-            st.success("All items are sufficiently stocked.")
+            st.subheader("Inventory Management Dashboard")
+            st.sidebar.write("## Functions")
+            functions = [
+                "Low Stock Alerts",
+                "Update Inventory",
+                "Order Tracking",
+                "Reporting and Analytics",
+                "Display Supplier Details",
+                "Delivery Tracking"
+            ]
+            selected_function = st.sidebar.selectbox("Select Function", functions)
 
-        # Stock Adjustment
-        st.subheader("Adjust Stock Levels")
-        sku = st.selectbox("Select SKU:", inventory_df["SKU"])
-        adjustment = st.number_input("Adjustment Quantity:", value=0)
-        if st.button("Adjust Stock"):
-            inventory_df.loc[inventory_df["SKU"] == sku, "Stock Level"] += adjustment
-            st.success(f"Stock level for {sku} updated.")
+            if selected_function == "Low Stock Alerts":
+                st.subheader("Low Stock Alerts")
+                threshold = st.number_input("Enter Stock Threshold", min_value=1, value=10)
+                low_stock_alerts(threshold)
 
-    # Orders Page
-    elif page == "Orders":
-        st.header("Order Processing")
+            elif selected_function == "Update Inventory":
+                st.subheader("Update Inventory")
+                item_id = st.number_input("Enter Item ID", min_value=1)
+                new_stock = st.number_input("New Stock Quantity", min_value=0)
+                new_price = st.number_input("New Price", min_value=0.0)
+                if st.button("Update"):
+                    update_inventory(item_id, new_stock, new_price)
 
-        # Display orders data
-        st.subheader("Current Orders")
-        st.dataframe(orders_df)
+            elif selected_function == "Order Tracking":
+                st.subheader("Order Tracking")
+                order_id = st.number_input("Enter Order ID", min_value=1)
+                if st.button("Track Order"):
+                    order_tracking(order_id)
 
-        # Order Status Update
-        st.subheader("Update Order Status")
-        order_id = st.selectbox("Select Order ID:", orders_df["Order ID"])
-        new_status = st.selectbox("New Status:", ["Pending", "Shipped", "Delivered"])
-        if st.button("Update Status"):
-            orders_df.loc[orders_df["Order ID"] == order_id, "Status"] = new_status
-            st.success(f"Order {order_id} status updated to {new_status}.")
+            elif selected_function == "Reporting and Analytics":
+                reporting_analytics()
 
-    # Reports Page
-    elif page == "Reports":
-        st.header("Sales and Inventory Reports")
+            elif selected_function == "Display Supplier Details":
+                display_supplier_details()
 
-        # Sales Report
-        st.subheader("Sales Report")
-        st.write("Sales trends, performance metrics, and demand forecasting.")
+            elif selected_function == "Delivery Tracking":
+                st.subheader("Delivery Tracking")
+                order_id = st.number_input("Enter Order ID", min_value=1)
+                if st.button("Track Delivery"):
+                    delivery_tracking(order_id)
 
-        # Inventory Report
-        st.subheader("Inventory Report")
-        st.write("Stock levels, low stock history, and supplier details.")
+# Initialize Database and Run App
+if __name__ == '__main__':
+    init_db()
+    main()
