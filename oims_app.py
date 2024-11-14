@@ -15,7 +15,7 @@ cursor = conn.cursor()
 cursor.execute('CREATE TABLE IF NOT EXISTS users (username TEXT, password TEXT)')
 conn.commit()
 
-# Registration and Login Pages
+# Registration and Login Functions
 def register_user(username, password):
     hashed_password = hash_password(password)
     cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
@@ -26,19 +26,19 @@ def login_user(username, password):
     cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, hashed_password))
     return cursor.fetchone()
 
-# Check if user is already logged in
+# Initialize session state for login
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # Login and Registration Interface
-if not st.session_state.logged_in:
+def login_screen():
     st.title("Welcome to Inventory Management Dashboard")
     menu = st.selectbox("Choose Action", ["Login", "Register"])
 
     if menu == "Register":
         st.subheader("Create a New Account")
-        new_username = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
+        new_username = st.text_input("Username", key="register_username")
+        new_password = st.text_input("Password", type="password", key="register_password")
         if st.button("Register"):
             if new_username and new_password:
                 cursor.execute("SELECT * FROM users WHERE username = ?", (new_username,))
@@ -52,8 +52,8 @@ if not st.session_state.logged_in:
 
     elif menu == "Login":
         st.subheader("Log in to Your Account")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
         if st.button("Login"):
             if login_user(username, password):
                 st.session_state.logged_in = True
@@ -63,7 +63,11 @@ if not st.session_state.logged_in:
                 st.error("Incorrect username or password.")
 
 # Main Dashboard after Login
-if st.session_state.logged_in:
+def main_dashboard():
+    # KPI section at the top
+    st.title("🗃️ Inventory Management Dashboard")
+    col1, col2, col3 = st.columns(3)
+
     # Initialize mock data in session state if not already initialized
     if "inventory_data" not in st.session_state:
         st.session_state.inventory_data = {
@@ -86,21 +90,21 @@ if st.session_state.logged_in:
     inventory_df = pd.DataFrame(st.session_state.inventory_data)
     orders_df = pd.DataFrame(st.session_state.orders_data)
 
-    # KPI section at the top
-    st.title("🗃️ Inventory Management Dashboard")
-    col1, col2, col3 = st.columns(3)
+    # Display KPI boxes at the top of the dashboard
     total_stock = inventory_df["Stock Level"].sum()
     low_stock_count = inventory_df[inventory_df["Stock Level"] < inventory_df["Threshold"]].shape[0]
     pending_orders = orders_df[orders_df["Status"] == "Pending"].shape[0]
 
-    col1.markdown(f"<div class='kpi'>📦 Total Stock<br><b>{total_stock}</b></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='kpi'>⚠️ Low Stock Items<br><b>{low_stock_count}</b></div>", unsafe_allow_html=True)
-    col3.markdown(f"<div class='kpi'>📋 Pending Orders<br><b>{pending_orders}</b></div>", unsafe_allow_html=True)
+    col1.metric("📦 Total Stock", total_stock)
+    col2.metric("⚠️ Low Stock Items", low_stock_count)
+    col3.metric("📋 Pending Orders", pending_orders)
 
     # Sidebar for navigation with icons
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Select a page:", ["📦 Inventory", "📑 Orders", "📈 Reports"])
-    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False, "username": ""}))
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.experimental_rerun()
 
     # Inventory Page
     if page == "📦 Inventory":
@@ -137,59 +141,3 @@ if st.session_state.logged_in:
     elif page == "📑 Orders":
         st.header("Order Processing")
 
-        # Display orders data in an expander
-        with st.expander("Current Orders", expanded=True):
-            st.dataframe(orders_df)
-
-        # Order Status Update
-        st.subheader("Update Order Status")
-        order_id = st.selectbox("Select Order ID:", orders_df["Order ID"])
-        new_status = st.selectbox("New Status:", ["Pending", "Shipped", "Delivered"])
-        if st.button("Update Status"):
-            # Update order status in the session state directly
-            index = orders_df[orders_df["Order ID"] == order_id].index[0]
-            st.session_state.orders_data["Status"][index] = new_status
-            st.success(f"Order {order_id} status updated to {new_status}.")
-
-            # Refresh the displayed orders data
-            orders_df = pd.DataFrame(st.session_state.orders_data)
-            st.dataframe(orders_df)  # Refresh table with updated data
-
-    # Reports Page
-    elif page == "📈 Reports":
-        st.header("Sales and Inventory Reports")
-
-        # Sales Report with Matplotlib
-        st.subheader("Sales Trends")
-        dates = pd.date_range(start="2023-01-01", periods=12, freq="M")
-        sales = np.random.randint(1000, 5000, size=12)
-        sales_data = pd.DataFrame({"Date": dates, "Sales": sales})
-        fig, ax = plt.subplots()
-        ax.plot(sales_data["Date"], sales_data["Sales"], marker="o", color="b")
-        ax.set_title("Monthly Sales Trends")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Sales")
-        st.pyplot(fig)
-
-        # Inventory Turnover with Matplotlib
-        st.subheader("Inventory Turnover")
-        turnover = np.random.rand(3) * 10
-        fig, ax = plt.subplots()
-        ax.bar(inventory_df["Product"], turnover, color="green")
-        ax.set_title("Inventory Turnover Rate by Product")
-        ax.set_xlabel("Product")
-        ax.set_ylabel("Turnover Rate")
-        st.pyplot(fig)
-
-        # Product Performance
-        st.subheader("Product Performance Metrics")
-        performance_data = {
-            "Product": ["Widget A", "Widget B", "Widget C"],
-            "Sales": [150, 120, 300],
-            "Returns": [5, 10, 8],
-            "Profit Margin": [0.35, 0.25, 0.45]
-        }
-        performance_df = pd.DataFrame(performance_data)
-        st.table(performance_df)
-
-        st.write("These reports give insights into sales trends, inventory turnover, and individual product performance.")
