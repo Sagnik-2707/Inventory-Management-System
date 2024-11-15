@@ -16,9 +16,8 @@ def init_db():
                         username TEXT UNIQUE, 
                         password TEXT)''')
 
-        # Drop the existing inventory table if it exists and recreate it
-        c.execute("DROP TABLE IF EXISTS inventory")
-        c.execute('''CREATE TABLE inventory (
+        # Inventory table with sample SKUs
+        c.execute('''CREATE TABLE IF NOT EXISTS inventory (
                         item_id INTEGER PRIMARY KEY, 
                         item_name TEXT UNIQUE, 
                         stock INTEGER, 
@@ -39,7 +38,7 @@ def init_db():
             ("SKU9", 10, 3, 160.0, 5),
             ("SKU10", 8, 4, 140.0, 5)
         ]
-        c.executemany("INSERT INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
+        c.executemany("INSERT OR IGNORE INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
 
         conn.commit()
     except sqlite3.Error as e:
@@ -47,7 +46,7 @@ def init_db():
     finally:
         conn.close()
 
-# Remaining functions for user registration, login, and low stock alert
+# User management functions
 def register_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
@@ -73,7 +72,7 @@ def login_user(username, password):
     finally:
         conn.close()
 
-# Low Stock Alert System
+# Low Stock Alert and Inventory Display
 def low_stock_alerts():
     try:
         conn = sqlite3.connect('inventory_management.db')
@@ -93,35 +92,17 @@ def low_stock_alerts():
     df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
     st.table(df)
 
-    # Remove stock functionality
-    selected_item = st.selectbox("Select an Item to Remove Stock", df["Item Name"])
-    remove_quantity = st.number_input("Quantity to Remove", min_value=1, value=1)
-    if st.button("Remove Stock"):
-        try:
-            conn = sqlite3.connect('inventory_management.db')
-            c = conn.cursor()
-            c.execute("SELECT stock, threshold FROM inventory WHERE item_name = ?", (selected_item,))
-            stock, threshold = c.fetchone()
-            new_stock = stock - remove_quantity
-            if new_stock < 0:
-                st.warning("Cannot have negative stock. Check the removal quantity.")
-            else:
-                c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, selected_item))
-                conn.commit()
-                st.success(f"Removed {remove_quantity} from {selected_item}. New stock is {new_stock}.")
-                if new_stock < threshold:
-                    st.error(f"Alert: {selected_item} stock is below the threshold! Current stock: {new_stock}, Threshold: {threshold}")
-        except sqlite3.Error as e:
-            st.error(f"Error updating stock: {e}")
-        finally:
-            conn.close()
+    # Show alerts for items below threshold
+    low_stock_items = df[df["Stock"] < df["Threshold"]]
+    for index, row in low_stock_items.iterrows():
+        st.error(f"Alert: {row['Item Name']} stock is below the threshold! Current stock: {row['Stock']}, Threshold: {row['Threshold']}")
 
-# Restocking Inventory System
-def restock_inventory():
+# Inventory Update Function
+def update_inventory():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        c.execute("SELECT item_id, item_name, stock FROM inventory")
+        c.execute("SELECT item_name, stock FROM inventory")
         items = c.fetchall()
     except sqlite3.Error as e:
         st.error(f"Error fetching inventory data: {e}")
@@ -129,24 +110,24 @@ def restock_inventory():
     finally:
         conn.close()
 
-    st.subheader("Restock Inventory")
-    item_name = st.selectbox("Select an Item to Restock", [item[1] for item in items])
-    add_quantity = st.number_input("Quantity to Add", min_value=1, value=1)
+    st.subheader("Update Inventory Stock Levels")
+    item_name = st.selectbox("Select an Item to Update Stock", [item[0] for item in items])
+    new_stock = st.number_input("New Stock Quantity", min_value=0, value=0)
 
-    if st.button("Add Stock"):
+    if st.button("Update Stock"):
         try:
             conn = sqlite3.connect('inventory_management.db')
             c = conn.cursor()
-            c.execute("SELECT stock FROM inventory WHERE item_name = ?", (item_name,))
-            stock = c.fetchone()[0]
-            new_stock = stock + add_quantity
             c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
             conn.commit()
-            st.success(f"Added {add_quantity} to {item_name}. New stock is {new_stock}.")
+            st.success(f"Stock for {item_name} updated to {new_stock}.")
         except sqlite3.Error as e:
             st.error(f"Error updating stock: {e}")
         finally:
             conn.close()
+
+        # Refresh Low Stock Alerts Table
+        low_stock_alerts()
 
 # Streamlit App
 def main():
@@ -183,14 +164,14 @@ def main():
         else:
             st.subheader("Inventory Management Dashboard")
             st.sidebar.write("## Functions")
-            functions = ["Low Stock Alerts", "Restock Inventory"]
+            functions = ["Low Stock Alerts", "Update Inventory"]
             selected_function = st.sidebar.selectbox("Select Function", functions)
 
             if selected_function == "Low Stock Alerts":
                 low_stock_alerts()
 
-            elif selected_function == "Restock Inventory":
-                restock_inventory()
+            elif selected_function == "Update Inventory":
+                update_inventory()
 
 # Initialize Database and Run App
 if __name__ == '__main__':
