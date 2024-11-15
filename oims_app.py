@@ -255,6 +255,7 @@ def main():
     elif choice == "Dashboard":
         dashboard()
 
+# Initialize Database and Run App
 if __name__ == "__main__":
     init_db()  # Initialize the database
     main()
