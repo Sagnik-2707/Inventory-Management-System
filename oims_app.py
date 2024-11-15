@@ -5,10 +5,6 @@ from hashlib import sha256
 import pandas as pd
 import os
 
-# Initialize session state for login status
-if 'logged_in' not in st.session_state:
-    st.session_state['logged_in'] = False
-
 # Delete the existing database if it exists to avoid issues with outdated schema
 if os.path.exists('inventory_management.db'):
     os.remove('inventory_management.db')
@@ -69,11 +65,9 @@ def register_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        # Hash the password using sha256
         hashed_password = sha256(password.encode()).hexdigest()
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
-        st.success("Account created successfully! Please log in.")
     except sqlite3.Error as e:
         st.error(f"Error during registration: {e}")
     finally:
@@ -83,7 +77,6 @@ def login_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        # Hash the entered password and compare with stored hash
         hashed_password = sha256(password.encode()).hexdigest()
         c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
         data = c.fetchone()
@@ -217,7 +210,7 @@ def fetch_inventory():
 
 # Dashboard Functionality
 def dashboard():
-    if not st.session_state['logged_in']:
+    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
         st.warning("Please login first.")
     else:
         st.subheader("Inventory Management Dashboard")
@@ -235,41 +228,45 @@ def dashboard():
             st.subheader("Place an Order")
             inventory_items = fetch_inventory()
             item_name = st.selectbox("Select Item to Order", [item[0] for item in inventory_items])
-            quantity = st.number_input("Quantity", min_value=1)
+            quantity = st.number_input("Quantity", min_value=1, value=1)
+
             if st.button("Place Order"):
                 place_order(item_name, quantity)
 
         elif selected_function == "Track Orders":
             track_orders()
 
-# Main Function
+# Main app
 def main():
+    st.title("Inventory Management System")
+
     menu = ["Login", "Register", "Dashboard"]
-    choice = st.sidebar.selectbox("Select Option", menu)
+    choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Login":
-        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
             user = login_user(username, password)
             if user:
                 st.session_state['logged_in'] = True
-                st.success("Logged in successfully!")
-                st.experimental_rerun()
+                st.session_state['username'] = username
+                st.success("Login successful!")
             else:
-                st.error("Invalid credentials, please try again.")
+                st.error("Invalid username or password.")
 
     elif choice == "Register":
-        st.subheader("Register")
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        st.subheader("Create a New Account")
+        new_user = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
         if st.button("Register"):
-            register_user(username, password)
+            register_user(new_user, new_password)
+            st.success("Account created successfully! Please log in.")
 
     elif choice == "Dashboard":
         dashboard()
 
-if __name__ == '__main__':
-    init_db()  # Initialize database
+# Initialize Database and Run App
+if __name__ == "__main__":
+    init_db()  # Initialize the database
     main()
