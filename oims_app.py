@@ -176,6 +176,7 @@ def display_suppliers():
         st.write("No supplier data found.")
 
 def edit_supplier():
+   def edit_supplier():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
@@ -220,6 +221,10 @@ def edit_supplier():
                 st.error(f"Error updating supplier data: {e}")
             finally:
                 conn.close()
+
+            # Refresh the supplier table after update
+            display_suppliers()
+
 
 # Order Management: Place and Track Orders
 def place_order():
