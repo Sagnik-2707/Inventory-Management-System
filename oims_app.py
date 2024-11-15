@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 from hashlib import sha256
+import pandas as pd
 
 # Database setup
 def init_db():
@@ -19,24 +20,26 @@ def init_db():
                     item_id INTEGER PRIMARY KEY, 
                     item_name TEXT, 
                     stock INTEGER, 
+                    threshold INTEGER, 
                     price REAL, 
                     supplier_id INTEGER)''')
     
-    # Orders table
-    c.execute('''CREATE TABLE IF NOT EXISTS orders (
-                    order_id INTEGER PRIMARY KEY, 
-                    item_id INTEGER, 
-                    quantity INTEGER, 
-                    order_status TEXT, 
-                    delivery_status TEXT, 
-                    date TEXT)''')
-    
-    # Suppliers table
-    c.execute('''CREATE TABLE IF NOT EXISTS suppliers (
-                    supplier_id INTEGER PRIMARY KEY, 
-                    supplier_name TEXT, 
-                    contact_info TEXT)''')
-    
+    # Populate inventory with sample SKUs if empty
+    c.execute("SELECT COUNT(*) FROM inventory")
+    if c.fetchone()[0] == 0:
+        sample_data = [
+            ("SKU1", 50, 10, 100.0),
+            ("SKU2", 20, 5, 200.0),
+            ("SKU3", 15, 5, 150.0),
+            ("SKU4", 30, 10, 300.0),
+            ("SKU5", 40, 15, 120.0),
+            ("SKU6", 5, 2, 80.0),
+            ("SKU7", 25, 8, 90.0),
+            ("SKU8", 35, 10, 130.0),
+            ("SKU9", 10, 3, 160.0),
+            ("SKU10", 8, 4, 140.0)
+        ]
+        c.executemany("INSERT INTO inventory (item_name, stock, threshold, price) VALUES (?, ?, ?, ?)", sample_data)
     conn.commit()
     conn.close()
 
@@ -57,78 +60,64 @@ def login_user(username, password):
     conn.close()
     return data
 
-# Inventory Management Functionalities
-
-def low_stock_alerts(threshold=10):
+# Low Stock Alert System
+def low_stock_alerts():
     conn = sqlite3.connect('inventory_management.db')
     c = conn.cursor()
-    c.execute("SELECT item_name, stock FROM inventory WHERE stock < ?", (threshold,))
+    c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
     data = c.fetchall()
     conn.close()
     
-    st.subheader("Low Stock Alerts")
-    if data:
-        for item, stock in data:
-            st.write(f"Item: {item}, Stock: {stock}")
-    else:
-        st.write("No items are below the threshold stock level.")
+    st.subheader("Low Stock Alerts System")
+    st.write("Current stock levels and thresholds:")
 
-def update_inventory(item_id, stock, price):
-    conn = sqlite3.connect('inventory_management.db')
-    c = conn.cursor()
-    c.execute("UPDATE inventory SET stock = ?, price = ? WHERE item_id = ?", (stock, price, item_id))
-    conn.commit()
-    conn.close()
-    st.success("Inventory updated successfully.")
+    # Convert data to DataFrame for better display
+    df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
+    st.table(df)
 
-def order_tracking(order_id):
-    conn = sqlite3.connect('inventory_management.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,))
-    data = c.fetchone()
-    conn.close()
-    
+    # Remove stock functionality
+    selected_item = st.selectbox("Select an Item to Remove Stock", df["Item Name"])
+    remove_quantity = st.number_input("Quantity to Remove", min_value=1, value=1)
+    if st.button("Remove Stock"):
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT stock, threshold FROM inventory WHERE item_name = ?", (selected_item,))
+        stock, threshold = c.fetchone()
+        new_stock = stock - remove_quantity
+        if new_stock < 0:
+            st.warning("Cannot have negative stock. Check the removal quantity.")
+        else:
+            # Update stock in database
+            c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, selected_item))
+            conn.commit()
+            st.success(f"Removed {remove_quantity} from {selected_item}. New stock is {new_stock}.")
+            
+            # Trigger alert if stock falls below threshold
+            if new_stock < threshold:
+                st.error(f"Alert: {selected_item} stock is below the threshold! Current stock: {new_stock}, Threshold: {threshold}")
+        conn.close()
+
+# Other Inventory Functionalities
+
+def update_inventory():
+    st.subheader("Update Inventory")
+    st.write("Functionality for updating inventory here...")
+
+def order_tracking():
     st.subheader("Order Tracking")
-    if data:
-        st.write(f"Order ID: {data[0]}, Item ID: {data[1]}, Quantity: {data[2]}, Status: {data[3]}, Delivery Status: {data[4]}, Date: {data[5]}")
-    else:
-        st.warning("Order not found.")
+    st.write("Functionality for tracking orders here...")
 
 def reporting_analytics():
-    conn = sqlite3.connect('inventory_management.db')
-    c = conn.cursor()
-    c.execute("SELECT item_name, SUM(stock) FROM inventory GROUP BY item_name")
-    stock_data = c.fetchall()
-    conn.close()
-    
-    st.subheader("Inventory Stock Summary")
-    for item_name, total_stock in stock_data:
-        st.write(f"Item: {item_name}, Total Stock: {total_stock}")
-    st.write("---")
+    st.subheader("Reporting and Analytics")
+    st.write("Functionality for displaying reports and analytics here...")
 
 def display_supplier_details():
-    conn = sqlite3.connect('inventory_management.db')
-    c = conn.cursor()
-    c.execute("SELECT supplier_name, contact_info FROM suppliers")
-    data = c.fetchall()
-    conn.close()
-    
     st.subheader("Supplier Details")
-    for supplier, contact in data:
-        st.write(f"Supplier: {supplier}, Contact Info: {contact}")
+    st.write("Functionality for displaying supplier details here...")
 
-def delivery_tracking(order_id):
-    conn = sqlite3.connect('inventory_management.db')
-    c = conn.cursor()
-    c.execute("SELECT delivery_status FROM orders WHERE order_id = ?", (order_id,))
-    data = c.fetchone()
-    conn.close()
-    
+def delivery_tracking():
     st.subheader("Delivery Tracking")
-    if data:
-        st.write(f"Delivery Status: {data[0]}")
-    else:
-        st.warning("Order not found.")
+    st.write("Functionality for tracking deliveries here...")
 
 # Streamlit App
 
@@ -177,35 +166,17 @@ def main():
             selected_function = st.sidebar.selectbox("Select Function", functions)
 
             if selected_function == "Low Stock Alerts":
-                st.subheader("Low Stock Alerts")
-                threshold = st.number_input("Enter Stock Threshold", min_value=1, value=10)
-                low_stock_alerts(threshold)
-
+                low_stock_alerts()
             elif selected_function == "Update Inventory":
-                st.subheader("Update Inventory")
-                item_id = st.number_input("Enter Item ID", min_value=1)
-                new_stock = st.number_input("New Stock Quantity", min_value=0)
-                new_price = st.number_input("New Price", min_value=0.0)
-                if st.button("Update"):
-                    update_inventory(item_id, new_stock, new_price)
-
+                update_inventory()
             elif selected_function == "Order Tracking":
-                st.subheader("Order Tracking")
-                order_id = st.number_input("Enter Order ID", min_value=1)
-                if st.button("Track Order"):
-                    order_tracking(order_id)
-
+                order_tracking()
             elif selected_function == "Reporting and Analytics":
                 reporting_analytics()
-
             elif selected_function == "Display Supplier Details":
                 display_supplier_details()
-
             elif selected_function == "Delivery Tracking":
-                st.subheader("Delivery Tracking")
-                order_id = st.number_input("Enter Order ID", min_value=1)
-                if st.button("Track Delivery"):
-                    delivery_tracking(order_id)
+                delivery_tracking()
 
 # Initialize Database and Run App
 if __name__ == '__main__':
