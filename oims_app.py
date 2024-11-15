@@ -8,7 +8,7 @@ def init_db():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        c.execute('''
+        c.execute(''' 
             CREATE TABLE IF NOT EXISTS inventory (
                 item_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_name TEXT,
@@ -17,7 +17,7 @@ def init_db():
                 threshold INTEGER
             )
         ''')
-        c.execute('''
+        c.execute(''' 
             CREATE TABLE IF NOT EXISTS orders (
                 order_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id INTEGER,
@@ -27,14 +27,14 @@ def init_db():
                 FOREIGN KEY(item_id) REFERENCES inventory(item_id)
             )
         ''')
-        c.execute('''
+        c.execute(''' 
             CREATE TABLE IF NOT EXISTS suppliers (
                 supplier_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 supplier_name TEXT,
                 contact_info TEXT
             )
         ''')
-        c.execute('''
+        c.execute(''' 
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -151,6 +151,37 @@ def update_inventory():
             st.subheader("Current Inventory")
             df = pd.DataFrame(items, columns=["Item ID", "Item Name", "Stock", "Price", "Threshold"])
             st.table(df)
+
+            # Select item to update stock
+            item_names = [item[1] for item in items]
+            selected_item_name = st.selectbox("Select an Item to Update", item_names)
+
+            # Get the current stock of the selected item
+            conn = sqlite3.connect('inventory_management.db')
+            c = conn.cursor()
+            c.execute("SELECT item_id, stock FROM inventory WHERE item_name = ?", (selected_item_name,))
+            item = c.fetchone()
+            conn.close()
+
+            item_id, current_stock = item
+
+            # Update stock quantity
+            updated_stock = st.number_input("Enter New Stock Quantity", min_value=0, value=current_stock)
+
+            if st.button("Update Stock"):
+                try:
+                    # Update inventory with the new stock value
+                    conn = sqlite3.connect('inventory_management.db')
+                    c = conn.cursor()
+                    c.execute("UPDATE inventory SET stock = ? WHERE item_id = ?", (updated_stock, item_id))
+                    conn.commit()
+                    conn.close()
+                    st.success(f"Stock for {selected_item_name} updated to {updated_stock}.")
+                    
+                    # Re-fetch and display the updated inventory
+                    update_inventory()  # Recursively update the inventory table
+                except sqlite3.Error as e:
+                    st.error(f"Error updating stock: {e}")
         else:
             st.write("No items found in inventory.")
     except sqlite3.Error as e:
@@ -239,32 +270,29 @@ def dashboard():
 
         elif selected_function == "Manage Suppliers":
             display_suppliers()
-            edit_supplier()
 
-# Streamlit App
+# Main Program
 def main():
-    st.title("Inventory Management System")
-    st.sidebar.title("Navigation")
-    menu = ["Login", "Register", "Dashboard"]
-    choice = st.sidebar.selectbox("Select Option", menu)
+    init_db()
 
-    if choice == "Login":
+    st.title("Inventory Management System")
+
+    # User login/logout
+    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
+
         if st.button("Login"):
             if login_user(username, password):
                 st.session_state['logged_in'] = True
-                st.success("Logged in successfully")
+                st.success("Logged in successfully.")
             else:
-                st.error("Invalid credentials")
-    elif choice == "Register":
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+                st.error("Invalid username or password.")
+
         if st.button("Register"):
             register_user(username, password)
-    elif choice == "Dashboard":
+    else:
         dashboard()
 
 if __name__ == "__main__":
-    init_db()
     main()
