@@ -2,6 +2,7 @@ import sqlite3
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from hashlib import sha256
 
 # Initialize the Database
 def init_db():
@@ -46,33 +47,32 @@ def init_db():
     except sqlite3.Error as e:
         st.error(f"Error initializing database: {e}")
 
-# User Registration Function
+# User Registration Function with Password Hashing
 def register_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        hashed_password = sha256(password.encode()).hexdigest()
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
         conn.close()
-        st.success("User registered successfully.")
+        st.success("User registered successfully!")
     except sqlite3.Error as e:
-        st.error(f"Error registering user: {e}")
+        st.error(f"Error during registration: {e}")
 
-# User Login Function
+# User Login Function with Password Hashing
 def login_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-        user = c.fetchone()
-        conn.close()
-        if user:
-            return True
-        else:
-            return False
+        hashed_password = sha256(password.encode()).hexdigest()
+        c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
+        data = c.fetchone()
+        return data
     except sqlite3.Error as e:
-        st.error(f"Error logging in user: {e}")
-        return False
+        st.error(f"Error during login: {e}")
+    finally:
+        conn.close()
 
 # Place Order Function
 def place_order():
@@ -280,7 +280,8 @@ def main():
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            if login_user(username, password):
+            user = login_user(username, password)
+            if user:
                 st.session_state['logged_in'] = True
                 st.success("Logged in successfully.")
             else:
