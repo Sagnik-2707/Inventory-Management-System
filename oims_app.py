@@ -93,7 +93,6 @@ def place_order():
 
     if st.button("Place Order"):
         try:
-            # Check if enough stock is available
             conn = sqlite3.connect('inventory_management.db')
             c = conn.cursor()
             c.execute("SELECT item_id, stock, price FROM inventory WHERE item_name = ?", (item_name,))
@@ -101,18 +100,15 @@ def place_order():
             item_id, stock, price = item
 
             if quantity <= stock:
-                # Place order
                 order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 c.execute("INSERT INTO orders (item_id, quantity, order_date, order_status) VALUES (?, ?, ?, ?)", 
                           (item_id, quantity, order_date, "Pending"))
-                # Update inventory stock
                 new_stock = stock - quantity
                 c.execute("UPDATE inventory SET stock = ? WHERE item_id = ?", (new_stock, item_id))
                 conn.commit()
                 st.success(f"Order placed for {quantity} of {item_name}.")
             else:
                 st.error(f"Not enough stock for {item_name}. Only {stock} available.")
-
         except sqlite3.Error as e:
             st.error(f"Error placing order: {e}")
         finally:
@@ -138,7 +134,7 @@ def track_orders():
     else:
         st.write("No orders found.")
 
-# Update Inventory Function (without recursion)
+# Update Inventory Function
 def update_inventory():
     try:
         conn = sqlite3.connect('inventory_management.db')
@@ -152,11 +148,9 @@ def update_inventory():
             df = pd.DataFrame(items, columns=["Item ID", "Item Name", "Stock", "Price", "Threshold"])
             st.table(df)
 
-            # Select item to update stock
             item_names = [item[1] for item in items]
             selected_item_name = st.selectbox("Select an Item to Update", item_names)
 
-            # Get the current stock of the selected item
             conn = sqlite3.connect('inventory_management.db')
             c = conn.cursor()
             c.execute("SELECT item_id, stock FROM inventory WHERE item_name = ?", (selected_item_name,))
@@ -165,12 +159,10 @@ def update_inventory():
 
             item_id, current_stock = item
 
-            # Update stock quantity
             updated_stock = st.number_input("Enter New Stock Quantity", min_value=0, value=current_stock)
 
             if st.button("Update Stock"):
                 try:
-                    # Update inventory with the new stock value
                     conn = sqlite3.connect('inventory_management.db')
                     c = conn.cursor()
                     c.execute("UPDATE inventory SET stock = ? WHERE item_id = ?", (updated_stock, item_id))
@@ -198,44 +190,15 @@ def current_stock_status():
         conn.close()
 
     st.subheader("Current Stock Status")
-    st.write("Current stock levels and thresholds:")
-
-    # Display data in a table format
     df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
     st.table(df)
 
-    # Show alerts for items below threshold
     low_stock_items = df[df["Stock"] < df["Threshold"]]
     for index, row in low_stock_items.iterrows():
         st.error(f"Alert: {row['Item Name']} stock is below the threshold! Current stock: {row['Stock']}, Threshold: {row['Threshold']}")
 
-# Dashboard Functionality
-def dashboard():
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.warning("Please login first.")
-    else:
-        selected_function = st.selectbox(
-            "Choose a Functionality", 
-            ["Update Inventory", "Place Order", "Track Orders", "Current Stock Status", "Manage Suppliers"]
-        )
-
-        if selected_function == "Update Inventory":
-            update_inventory()
-
-        elif selected_function == "Place Order":
-            place_order()
-
-        elif selected_function == "Track Orders":
-            track_orders()
-
-        elif selected_function == "Current Stock Status":
-            current_stock_status()
-
-        elif selected_function == "Manage Suppliers":
-            display_suppliers()
-
 # Manage Suppliers Function
-def display_suppliers():
+def manage_suppliers():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
@@ -249,47 +212,98 @@ def display_suppliers():
             st.table(df)
         else:
             st.write("No suppliers found.")
+
+        st.subheader("Add or Edit Supplier")
+        selected_supplier = st.selectbox(
+            "Select Supplier to Edit", 
+            ["Add New Supplier"] + [f"{sup[0]}: {sup[1]}" for sup in suppliers]
+        )
+
+        if selected_supplier == "Add New Supplier":
+            supplier_name = st.text_input("Supplier Name")
+            contact_info = st.text_input("Contact Info")
+            if st.button("Add Supplier"):
+                try:
+                    conn = sqlite3.connect('inventory_management.db')
+                    c = conn.cursor()
+                    c.execute("INSERT INTO suppliers (supplier_name, contact_info) VALUES (?, ?)", (supplier_name, contact_info))
+                    conn.commit()
+                    conn.close()
+                    st.success("Supplier added successfully.")
+                except sqlite3.Error as e:
+                    st.error(f"Error adding supplier: {e}")
+        else:
+            supplier_id = int(selected_supplier.split(":")[0])
+            supplier_name = st.text_input("Supplier Name", value=[sup[1] for sup in suppliers if sup[0] == supplier_id][0])
+            contact_info = st.text_input("Contact Info", value=[sup[2] for sup in suppliers if sup[0] == supplier_id][0])
+
+            if st.button("Update Supplier"):
+                try:
+                    conn = sqlite3.connect('inventory_management.db')
+                    c = conn.cursor()
+                    c.execute("UPDATE suppliers SET supplier_name = ?, contact_info = ? WHERE supplier_id = ?", 
+                              (supplier_name, contact_info, supplier_id))
+                    conn.commit()
+                    conn.close()
+                    st.success("Supplier details updated successfully.")
+                except sqlite3.Error as e:
+                    st.error(f"Error updating supplier: {e}")
     except sqlite3.Error as e:
         st.error(f"Error fetching supplier data: {e}")
 
-def edit_supplier():
-    st.subheader("Add or Edit Supplier")
-    supplier_name = st.text_input("Supplier Name")
-    contact_info = st.text_input("Contact Info")
-    
-    if st.button("Add Supplier"):
-        try:
-            conn = sqlite3.connect('inventory_management.db')
-            c = conn.cursor()
-            c.execute("INSERT INTO suppliers (supplier_name, contact_info) VALUES (?, ?)", (supplier_name, contact_info))
-            conn.commit()
-            conn.close()
-            st.success("Supplier added successfully.")
-        except sqlite3.Error as e:
-            st.error(f"Error adding supplier: {e}")
+# Dashboard Functionality
+def dashboard():
+    if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+        st.error("Please log in to access the dashboard.")
+        return
 
-# Main Program
+    st.sidebar.title("Dashboard Menu")
+    options = ["Current Stock Status", "Update Inventory", "Place Order", "Track Orders", "Manage Suppliers"]
+    choice = st.sidebar.radio("Select an Option", options)
+
+    if choice == "Current Stock Status":
+        current_stock_status()
+    elif choice == "Update Inventory":
+        update_inventory()
+    elif choice == "Place Order":
+        place_order()
+    elif choice == "Track Orders":
+        track_orders()
+    elif choice == "Manage Suppliers":
+        manage_suppliers()
+
+# Main Application
 def main():
+    st.title("Online Inventory Management System")
+
     init_db()
 
-    st.title("Inventory Management System")
+    menu = ["Home", "Login", "Register", "Dashboard"]
+    choice = st.sidebar.selectbox("Menu", menu)
 
-    # User login/logout
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+    if choice == "Home":
+        st.write("""
+        Welcome to the Online Inventory Management System.
+        Navigate using the menu on the left.
+        """)
+    elif choice == "Login":
+        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-
         if st.button("Login"):
             user = login_user(username, password)
             if user:
-                st.session_state['logged_in'] = True
-                st.success("Logged in successfully.")
+                st.session_state["logged_in"] = True
+                st.success("Login successful.")
             else:
                 st.error("Invalid username or password.")
-
+    elif choice == "Register":
+        st.subheader("Register")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("Register"):
             register_user(username, password)
-    else:
+    elif choice == "Dashboard":
         dashboard()
 
 if __name__ == "__main__":
