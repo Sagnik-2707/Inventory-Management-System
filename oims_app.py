@@ -25,7 +25,7 @@ def init_db():
                         price REAL, 
                         supplier_id INTEGER)''')
 
-        # Create the orders table with order_date column
+        # Orders table
         c.execute('''CREATE TABLE IF NOT EXISTS orders (
                         order_id INTEGER PRIMARY KEY AUTOINCREMENT, 
                         item_id INTEGER, 
@@ -33,6 +33,12 @@ def init_db():
                         order_date TEXT, 
                         order_status TEXT,
                         FOREIGN KEY(item_id) REFERENCES inventory(item_id))''')
+
+        # Suppliers table (New table for supplier information)
+        c.execute('''CREATE TABLE IF NOT EXISTS suppliers (
+                        supplier_id INTEGER PRIMARY KEY, 
+                        supplier_name TEXT, 
+                        contact_info TEXT)''')
 
         # Populate inventory with sample SKUs if empty
         sample_data = [
@@ -48,6 +54,16 @@ def init_db():
             ("SKU10", 8, 4, 140.0, 5)
         ]
         c.executemany("INSERT OR IGNORE INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
+
+        # Sample supplier data
+        supplier_data = [
+            (1, "Supplier 1", "Contact Info 1"),
+            (2, "Supplier 2", "Contact Info 2"),
+            (3, "Supplier 3", "Contact Info 3"),
+            (4, "Supplier 4", "Contact Info 4"),
+            (5, "Supplier 5", "Contact Info 5")
+        ]
+        c.executemany("INSERT OR IGNORE INTO suppliers (supplier_id, supplier_name, contact_info) VALUES (?, ?, ?)", supplier_data)
 
         conn.commit()
     except sqlite3.Error as e:
@@ -139,104 +155,169 @@ def update_inventory():
         # Refresh Low Stock Alerts Table
         low_stock_alerts()
 
-# Place an order
-def place_order(item_name, quantity):
+# Supplier Management: Display and Edit Supplier Information
+def display_suppliers():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-
-        # Fetch item_id from the inventory
-        c.execute("SELECT item_id, stock FROM inventory WHERE item_name = ?", (item_name,))
-        item = c.fetchone()
-
-        if item:
-            item_id, current_stock = item
-            if current_stock >= quantity:
-                # Update stock in the inventory
-                new_stock = current_stock - quantity
-                c.execute("UPDATE inventory SET stock = ? WHERE item_id = ?", (new_stock, item_id))
-                order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                c.execute("INSERT INTO orders (item_id, quantity, order_date, order_status) VALUES (?, ?, ?, ?)", 
-                          (item_id, quantity, order_date, "Pending"))
-                conn.commit()
-                st.success(f"Order placed for {quantity} of {item_name}.")
-            else:
-                st.warning("Insufficient stock for this order.")
-        else:
-            st.warning("Item not found in inventory.")
+        c.execute("SELECT supplier_id, supplier_name, contact_info FROM suppliers")
+        suppliers = c.fetchall()
     except sqlite3.Error as e:
-        st.error(f"Error placing order: {e}")
-    finally:
-        conn.close()
-
-# Track orders
-def track_orders():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT o.order_id, i.item_name, o.quantity, o.order_date, o.order_status "
-                  "FROM orders o JOIN inventory i ON o.item_id = i.item_id")
-        orders = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching order data: {e}")
+        st.error(f"Error fetching supplier data: {e}")
         return
     finally:
         conn.close()
 
-    st.subheader("Track Orders")
+    st.subheader("Supplier Information")
+    if suppliers:
+        df = pd.DataFrame(suppliers, columns=["Supplier ID", "Supplier Name", "Contact Info"])
+        st.table(df)
+    else:
+        st.write("No supplier data found.")
+
+def edit_supplier():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT supplier_id, supplier_name FROM suppliers")
+        suppliers = c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Error fetching supplier data: {e}")
+        return
+    finally:
+        conn.close()
+
+    st.subheader("Edit Supplier Information")
+    supplier_names = [s[1] for s in suppliers]
+    selected_supplier_name = st.selectbox("Select Supplier to Edit", supplier_names)
+
+    if selected_supplier_name:
+        # Fetch supplier details
+        try:
+            conn = sqlite3.connect('inventory_management.db')
+            c = conn.cursor()
+            c.execute("SELECT supplier_id, supplier_name, contact_info FROM suppliers WHERE supplier_name = ?", (selected_supplier_name,))
+            supplier = c.fetchone()
+        except sqlite3.Error as e:
+            st.error(f"Error fetching supplier details: {e}")
+            return
+        finally:
+            conn.close()
+
+        supplier_id, supplier_name, contact_info = supplier
+        new_supplier_name = st.text_input("Supplier Name", supplier_name)
+        new_contact_info = st.text_input("Contact Info", contact_info)
+
+        if st.button("Update Supplier"):
+            try:
+                conn = sqlite3.connect('inventory_management.db')
+                c = conn.cursor()
+                c.execute("UPDATE suppliers SET supplier_name = ?, contact_info = ? WHERE supplier_id = ?", 
+                          (new_supplier_name, new_contact_info, supplier_id))
+                conn.commit()
+                st.success(f"Supplier information for {selected_supplier_name} updated successfully!")
+            except sqlite3.Error as e:
+                st.error(f"Error updating supplier data: {e}")
+            finally:
+                conn.close()
+
+# Order Management: Place and Track Orders
+def place_order():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT item_name, stock, item_id FROM inventory")
+        items = c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Error fetching inventory data: {e}")
+        return
+    finally:
+        conn.close()
+
+    st.subheader("Place an Order")
+    item_names = [item[0] for item in items]
+    selected_item_name = st.selectbox("Select Item to Order", item_names)
+
+    if selected_item_name:
+        quantity = st.number_input("Quantity to Order", min_value=1)
+
+        if st.button("Place Order"):
+            item_id = [item[2] for item in items if item[0] == selected_item_name][0]
+            order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            order_status = "Pending"
+
+            try:
+                conn = sqlite3.connect('inventory_management.db')
+                c = conn.cursor()
+                c.execute("INSERT INTO orders (item_id, quantity, order_date, order_status) VALUES (?, ?, ?, ?)", 
+                          (item_id, quantity, order_date, order_status))
+                conn.commit()
+                st.success(f"Order placed for {quantity} of {selected_item_name}. Status: {order_status}")
+            except sqlite3.Error as e:
+                st.error(f"Error placing order: {e}")
+            finally:
+                conn.close()
+
+def track_orders():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT order_id, item_id, quantity, order_date, order_status FROM orders")
+        orders = c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Error fetching orders: {e}")
+        return
+    finally:
+        conn.close()
+
+    st.subheader("Track Your Orders")
     if orders:
-        df = pd.DataFrame(orders, columns=["Order ID", "Item Name", "Quantity", "Order Date", "Order Status"])
+        order_data = []
+        for order in orders:
+            item_id = order[1]
+            try:
+                conn = sqlite3.connect('inventory_management.db')
+                c = conn.cursor()
+                c.execute("SELECT item_name FROM inventory WHERE item_id = ?", (item_id,))
+                item_name = c.fetchone()[0]
+            except sqlite3.Error as e:
+                st.error(f"Error fetching item name: {e}")
+                continue
+            finally:
+                conn.close()
+
+            order_data.append([order[0], item_name, order[2], order[3], order[4]])
+
+        df = pd.DataFrame(order_data, columns=["Order ID", "Item Name", "Quantity", "Order Date", "Order Status"])
         st.table(df)
     else:
         st.write("No orders found.")
 
-# Fetch inventory items
-def fetch_inventory():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_name FROM inventory")
-        inventory = c.fetchall()
-        return inventory
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory: {e}")
-        return []
-    finally:
-        conn.close()
-
-# Dashboard Functionality
+# Dashboard
 def dashboard():
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.warning("Please login first.")
-    else:
-        st.subheader("Inventory Management Dashboard")
-        st.sidebar.write("## Functions")
-        functions = ["Low Stock Alerts", "Update Inventory", "Place Order", "Track Orders"]
-        selected_function = st.sidebar.selectbox("Select Function", functions)
+    selected_function = st.sidebar.radio("Select a Function", 
+                                        ["Low Stock Alerts", "Update Inventory", "Manage Suppliers", "Place Order", "Track Orders"])
 
-        if selected_function == "Low Stock Alerts":
-            low_stock_alerts()
+    if selected_function == "Low Stock Alerts":
+        low_stock_alerts()
 
-        elif selected_function == "Update Inventory":
-            update_inventory()
+    elif selected_function == "Update Inventory":
+        update_inventory()
 
-        elif selected_function == "Place Order":
-            st.subheader("Place an Order")
-            inventory_items = fetch_inventory()
-            item_name = st.selectbox("Select Item to Order", [item[0] for item in inventory_items])
-            quantity = st.number_input("Quantity", min_value=1, value=1)
+    elif selected_function == "Manage Suppliers":
+        display_suppliers()
+        edit_supplier()
 
-            if st.button("Place Order"):
-                place_order(item_name, quantity)
+    elif selected_function == "Place Order":
+        place_order()
 
-        elif selected_function == "Track Orders":
-            track_orders()
+    elif selected_function == "Track Orders":
+        track_orders()
 
 # Streamlit App
-
 def main():
     st.title("Inventory Management System")
-
+    st.sidebar.title("Navigation")
     menu = ["Login", "Register", "Dashboard"]
     choice = st.sidebar.selectbox("Menu", menu)
 
