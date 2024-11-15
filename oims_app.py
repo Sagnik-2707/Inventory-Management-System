@@ -235,18 +235,15 @@ def dashboard():
             st.subheader("Place an Order")
             inventory_items = fetch_inventory()
             item_name = st.selectbox("Select Item to Order", [item[0] for item in inventory_items])
-            quantity = st.number_input("Quantity", min_value=1, value=1)
+            quantity = st.number_input("Quantity", min_value=1)
             if st.button("Place Order"):
                 place_order(item_name, quantity)
-                st.write(f"Order for {quantity} {item_name}(s) placed successfully.")
-        
+
         elif selected_function == "Track Orders":
             track_orders()
 
-# Main function to handle user login/registration
+# Main Function
 def main():
-    st.title("Inventory Management System")
-
     menu = ["Login", "Register", "Dashboard"]
     choice = st.sidebar.selectbox("Select Option", menu)
 
