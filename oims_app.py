@@ -138,7 +138,7 @@ def track_orders():
     else:
         st.write("No orders found.")
 
-# Update Inventory Function
+# Update Inventory Function (without recursion)
 def update_inventory():
     try:
         conn = sqlite3.connect('inventory_management.db')
@@ -177,15 +177,62 @@ def update_inventory():
                     conn.commit()
                     conn.close()
                     st.success(f"Stock for {selected_item_name} updated to {updated_stock}.")
-                    
-                    # Re-fetch and display the updated inventory
-                    update_inventory()  # Recursively update the inventory table
                 except sqlite3.Error as e:
                     st.error(f"Error updating stock: {e}")
         else:
             st.write("No items found in inventory.")
     except sqlite3.Error as e:
         st.error(f"Error fetching inventory data: {e}")
+
+# Current Stock Status Function
+def current_stock_status():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
+        data = c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Error fetching inventory data: {e}")
+        return
+    finally:
+        conn.close()
+
+    st.subheader("Current Stock Status")
+    st.write("Current stock levels and thresholds:")
+
+    # Display data in a table format
+    df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
+    st.table(df)
+
+    # Show alerts for items below threshold
+    low_stock_items = df[df["Stock"] < df["Threshold"]]
+    for index, row in low_stock_items.iterrows():
+        st.error(f"Alert: {row['Item Name']} stock is below the threshold! Current stock: {row['Stock']}, Threshold: {row['Threshold']}")
+
+# Dashboard Functionality
+def dashboard():
+    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+        st.warning("Please login first.")
+    else:
+        selected_function = st.selectbox(
+            "Choose a Functionality", 
+            ["Update Inventory", "Place Order", "Track Orders", "Current Stock Status", "Manage Suppliers"]
+        )
+
+        if selected_function == "Update Inventory":
+            update_inventory()
+
+        elif selected_function == "Place Order":
+            place_order()
+
+        elif selected_function == "Track Orders":
+            track_orders()
+
+        elif selected_function == "Current Stock Status":
+            current_stock_status()
+
+        elif selected_function == "Manage Suppliers":
+            display_suppliers()
 
 # Manage Suppliers Function
 def display_suppliers():
@@ -220,56 +267,6 @@ def edit_supplier():
             st.success("Supplier added successfully.")
         except sqlite3.Error as e:
             st.error(f"Error adding supplier: {e}")
-
-# Current Stock Status Function
-def current_stock_status():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
-        data = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory data: {e}")
-        return
-    finally:
-        conn.close()
-
-    st.subheader("Current Stock Status")
-    st.write("Current stock levels and thresholds:")
-
-    # Display data in a table format
-    df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
-    st.table(df)
-
-    # Show alerts for items below threshold
-    low_stock_items = df[df["Stock"] < df["Threshold"]]
-    for index, row in low_stock_items.iterrows():
-        st.error(f"Alert: {row['Item Name']} stock is below the threshold! Current stock: {row['Stock']}, Threshold: {row['Threshold']}")
-
-# Dashboard Functionality
-def dashboard():
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.warning("Please login first.")
-    else:
-        st.subheader("Inventory Management Dashboard")
-        st.sidebar.write("## Functions")
-        functions = ["Current Stock Status", "Update Inventory", "Place Order", "Track Orders", "Manage Suppliers"]
-        selected_function = st.sidebar.selectbox("Select Function", functions)
-
-        if selected_function == "Current Stock Status":
-            current_stock_status()
-
-        elif selected_function == "Update Inventory":
-            update_inventory()
-
-        elif selected_function == "Place Order":
-            place_order()
-
-        elif selected_function == "Track Orders":
-            track_orders()
-
-        elif selected_function == "Manage Suppliers":
-            display_suppliers()
 
 # Main Program
 def main():
