@@ -6,87 +6,75 @@ import pandas as pd
 
 # Database setup
 def init_db():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
 
-        # User table
-        c.execute('''CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY, 
-                        username TEXT UNIQUE, 
-                        password TEXT)''')
+    # Drop tables if they exist to prevent schema conflicts (useful in development)
+    c.execute("DROP TABLE IF EXISTS users")
+    c.execute("DROP TABLE IF EXISTS inventory")
+    c.execute("DROP TABLE IF EXISTS orders")
 
-        # Inventory table with sample SKUs
-        c.execute('''CREATE TABLE IF NOT EXISTS inventory (
-                        item_id INTEGER PRIMARY KEY, 
-                        item_name TEXT UNIQUE, 
-                        stock INTEGER, 
-                        threshold INTEGER, 
-                        price REAL, 
-                        supplier_id INTEGER)''')
+    # User table
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, 
+                    username TEXT UNIQUE, 
+                    password TEXT)''')
 
-        # Order tracking table
-        c.execute('''CREATE TABLE IF NOT EXISTS orders (
-                        order_id INTEGER PRIMARY KEY, 
-                        item_id INTEGER, 
-                        quantity INTEGER, 
-                        status TEXT, 
-                        FOREIGN KEY (item_id) REFERENCES inventory (item_id))''')
+    # Inventory table with sample SKUs
+    c.execute('''CREATE TABLE IF NOT EXISTS inventory (
+                    item_id INTEGER PRIMARY KEY, 
+                    item_name TEXT UNIQUE, 
+                    stock INTEGER, 
+                    threshold INTEGER, 
+                    price REAL, 
+                    supplier_id INTEGER)''')
 
-        # Sample orders for testing
-        sample_orders = [
-            (1, 1, 5, "Processing"),
-            (2, 2, 3, "Shipped"),
-            (3, 3, 7, "In Transit"),
-            (4, 4, 2, "Delivered"),
-            (5, 5, 10, "Processing"),
-        ]
-        c.executemany("INSERT OR IGNORE INTO orders (order_id, item_id, quantity, status) VALUES (?, ?, ?, ?)", sample_orders)
+    # Order tracking table with status column
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+                    order_id INTEGER PRIMARY KEY, 
+                    item_id INTEGER, 
+                    quantity INTEGER, 
+                    status TEXT, 
+                    FOREIGN KEY (item_id) REFERENCES inventory (item_id))''')
 
-        conn.commit()
-    except sqlite3.Error as e:
-        st.error(f"Database error: {e}")
-    finally:
-        conn.close()
+    # Sample orders for testing
+    sample_orders = [
+        (1, 1, 5, "Processing"),
+        (2, 2, 3, "Shipped"),
+        (3, 3, 7, "In Transit"),
+        (4, 4, 2, "Delivered"),
+        (5, 5, 10, "Processing"),
+    ]
+    c.executemany("INSERT OR IGNORE INTO orders (order_id, item_id, quantity, status) VALUES (?, ?, ?, ?)", sample_orders)
+
+    conn.commit()
+    conn.close()
 
 # User management functions
 def register_user(username, password):
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        hashed_password = sha256(password.encode()).hexdigest()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
-        conn.commit()
-    except sqlite3.Error as e:
-        st.error(f"Error during registration: {e}")
-    finally:
-        conn.close()
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
+    conn.commit()
+    conn.close()
 
 def login_user(username, password):
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        hashed_password = sha256(password.encode()).hexdigest()
-        c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
-        data = c.fetchone()
-        return data
-    except sqlite3.Error as e:
-        st.error(f"Error during login: {e}")
-    finally:
-        conn.close()
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
+    data = c.fetchone()
+    conn.close()
+    return data
 
 # Low Stock Alert and Inventory Display
 def low_stock_alerts():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
-        data = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory data: {e}")
-        return
-    finally:
-        conn.close()
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
+    data = c.fetchall()
+    conn.close()
 
     st.subheader("Low Stock Alerts System")
     st.write("Current stock levels and thresholds:")
@@ -102,32 +90,23 @@ def low_stock_alerts():
 
 # Inventory Update Function
 def update_inventory():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_name, stock FROM inventory")
-        items = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory data: {e}")
-        return
-    finally:
-        conn.close()
+    conn = sqlite3.connect('inventory_management.db')
+    c = conn.cursor()
+    c.execute("SELECT item_name, stock FROM inventory")
+    items = c.fetchall()
+    conn.close()
 
     st.subheader("Update Inventory Stock Levels")
     item_name = st.selectbox("Select an Item to Update Stock", [item[0] for item in items])
     new_stock = st.number_input("New Stock Quantity", min_value=0, value=0)
 
     if st.button("Update Stock"):
-        try:
-            conn = sqlite3.connect('inventory_management.db')
-            c = conn.cursor()
-            c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
-            conn.commit()
-            st.success(f"Stock for {item_name} updated to {new_stock}.")
-        except sqlite3.Error as e:
-            st.error(f"Error updating stock: {e}")
-        finally:
-            conn.close()
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
+        conn.commit()
+        conn.close()
+        st.success(f"Stock for {item_name} updated to {new_stock}.")
 
         # Refresh Low Stock Alerts Table
         low_stock_alerts()
@@ -138,15 +117,11 @@ def order_tracking():
     order_id = st.number_input("Enter Order ID to Track", min_value=1, step=1)
 
     if st.button("Track Order"):
-        try:
-            conn = sqlite3.connect('inventory_management.db')
-            c = conn.cursor()
-            c.execute("SELECT order_id, item_id, quantity, status FROM orders WHERE order_id = ?", (order_id,))
-            order_data = c.fetchone()
-        except sqlite3.Error as e:
-            st.error(f"Error tracking order: {e}")
-        finally:
-            conn.close()
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT order_id, item_id, quantity, status FROM orders WHERE order_id = ?", (order_id,))
+        order_data = c.fetchone()
+        conn.close()
 
         if order_data:
             order_id, item_id, quantity, status = order_data
