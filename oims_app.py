@@ -5,6 +5,10 @@ from hashlib import sha256
 import pandas as pd
 import os
 
+# Initialize session state for login status
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
 # Delete the existing database if it exists to avoid issues with outdated schema
 if os.path.exists('inventory_management.db'):
     os.remove('inventory_management.db')
@@ -65,9 +69,11 @@ def register_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
+        # Hash the password using sha256
         hashed_password = sha256(password.encode()).hexdigest()
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
+        st.success("Account created successfully! Please log in.")
     except sqlite3.Error as e:
         st.error(f"Error during registration: {e}")
     finally:
@@ -77,6 +83,7 @@ def login_user(username, password):
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
+        # Hash the entered password and compare with stored hash
         hashed_password = sha256(password.encode()).hexdigest()
         c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
         data = c.fetchone()
@@ -210,7 +217,7 @@ def fetch_inventory():
 
 # Dashboard Functionality
 def dashboard():
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+    if not st.session_state['logged_in']:
         st.warning("Please login first.")
     else:
         st.subheader("Inventory Management Dashboard")
@@ -241,33 +248,31 @@ def main():
     st.title("Inventory Management System")
 
     menu = ["Login", "Register", "Dashboard"]
-    choice = st.sidebar.selectbox("Select Activity", menu)
+    choice = st.sidebar.selectbox("Select Option", menu)
 
     if choice == "Login":
-        st.subheader("Login to Your Account")
+        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
             user = login_user(username, password)
             if user:
                 st.session_state['logged_in'] = True
-                st.session_state['username'] = username
-                st.success("Login successful!")
+                st.success("Logged in successfully!")
+                st.experimental_rerun()
             else:
-                st.error("Invalid username or password.")
+                st.error("Invalid credentials, please try again.")
 
     elif choice == "Register":
-        st.subheader("Create a New Account")
-        new_user = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
+        st.subheader("Register")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("Register"):
-            register_user(new_user, new_password)
-            st.success("Account created successfully! Please log in.")
+            register_user(username, password)
 
     elif choice == "Dashboard":
         dashboard()
 
-# Initialize Database and Run App
-if __name__ == "__main__":
-    init_db()  # Initialize the database
+if __name__ == '__main__':
+    init_db()  # Initialize database
     main()
