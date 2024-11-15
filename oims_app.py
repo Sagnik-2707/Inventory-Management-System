@@ -143,7 +143,7 @@ def update_inventory():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
-        c.execute("SELECT * FROM inventory")
+        c.execute("SELECT item_id, item_name, stock, price, threshold FROM inventory")
         items = c.fetchall()
         conn.close()
         
@@ -254,19 +254,17 @@ def main():
         if st.button("Login"):
             if login_user(username, password):
                 st.session_state['logged_in'] = True
-                st.success("Login successful!")
+                st.success("Logged in successfully")
             else:
-                st.error("Invalid username or password.")
-    
+                st.error("Invalid credentials")
     elif choice == "Register":
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Register"):
             register_user(username, password)
-
     elif choice == "Dashboard":
         dashboard()
 
-if __name__ == '__main__':
-    init_db()  # Initialize the database
+if __name__ == "__main__":
+    init_db()
     main()
