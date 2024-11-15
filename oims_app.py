@@ -116,6 +116,38 @@ def low_stock_alerts():
         finally:
             conn.close()
 
+# Restocking Inventory System
+def restock_inventory():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT item_id, item_name, stock FROM inventory")
+        items = c.fetchall()
+    except sqlite3.Error as e:
+        st.error(f"Error fetching inventory data: {e}")
+        return
+    finally:
+        conn.close()
+
+    st.subheader("Restock Inventory")
+    item_name = st.selectbox("Select an Item to Restock", [item[1] for item in items])
+    add_quantity = st.number_input("Quantity to Add", min_value=1, value=1)
+
+    if st.button("Add Stock"):
+        try:
+            conn = sqlite3.connect('inventory_management.db')
+            c = conn.cursor()
+            c.execute("SELECT stock FROM inventory WHERE item_name = ?", (item_name,))
+            stock = c.fetchone()[0]
+            new_stock = stock + add_quantity
+            c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
+            conn.commit()
+            st.success(f"Added {add_quantity} to {item_name}. New stock is {new_stock}.")
+        except sqlite3.Error as e:
+            st.error(f"Error updating stock: {e}")
+        finally:
+            conn.close()
+
 # Streamlit App
 def main():
     st.title("Online Inventory Management System")
@@ -151,11 +183,14 @@ def main():
         else:
             st.subheader("Inventory Management Dashboard")
             st.sidebar.write("## Functions")
-            functions = ["Low Stock Alerts"]
+            functions = ["Low Stock Alerts", "Restock Inventory"]
             selected_function = st.sidebar.selectbox("Select Function", functions)
 
             if selected_function == "Low Stock Alerts":
                 low_stock_alerts()
+
+            elif selected_function == "Restock Inventory":
+                restock_inventory()
 
 # Initialize Database and Run App
 if __name__ == '__main__':
