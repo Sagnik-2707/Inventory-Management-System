@@ -68,6 +68,7 @@ def register_user(username, password):
         hashed_password = sha256(password.encode()).hexdigest()
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
         conn.commit()
+        st.success("User registered successfully!")
     except sqlite3.Error as e:
         st.error(f"Error during registration: {e}")
     finally:
@@ -251,24 +252,22 @@ def main():
             if user:
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.success(f"Logged in as {username}")
-                st.experimental_rerun()  # Refresh to show dashboard
+                st.success(f"Welcome back {username}!")
             else:
-                st.error("Invalid username or password")
+                st.error("Invalid Username or Password")
 
     elif choice == "Register":
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Register"):
             register_user(username, password)
-            st.success("User registered successfully!")
 
     elif choice == "Dashboard":
         dashboard()
 
-# Initialize the database
+# Initialize database
 init_db()
 
-# Run the app
-if __name__ == "__main__":
+# Run the main function
+if __name__ == '__main__':
     main()
