@@ -216,6 +216,10 @@ def edit_supplier():
                           (new_supplier_name, new_contact_info, supplier_id))
                 conn.commit()
                 st.success(f"Supplier information for {selected_supplier_name} updated successfully!")
+                
+                # Refresh the supplier table after the update
+                display_suppliers()  # Call this function to refresh the table with updated information
+
             except sqlite3.Error as e:
                 st.error(f"Error updating supplier data: {e}")
             finally:
@@ -246,32 +250,31 @@ def main():
     st.title("Inventory Management System")
     st.sidebar.title("Navigation")
     menu = ["Login", "Register", "Dashboard"]
-    choice = st.sidebar.selectbox("Menu", menu)
+    choice = st.sidebar.selectbox("Select Option", menu)
 
     if choice == "Login":
-        st.subheader("Login to Your Account")
+        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
-            user = login_user(username, password)
-            if user:
-                st.success(f"Welcome back {username}!")
+            if login_user(username, password):
                 st.session_state['logged_in'] = True
-                st.session_state['username'] = username
+                st.success("Logged in successfully!")
             else:
-                st.warning("Incorrect Username or Password")
+                st.error("Invalid credentials.")
 
     elif choice == "Register":
-        st.subheader("Create a New Account")
-        new_user = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
+        st.subheader("Register")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("Register"):
-            register_user(new_user, new_password)
+            register_user(username, password)
 
     elif choice == "Dashboard":
         dashboard()
 
-# Initialize Database and Run App
-if __name__ == '__main__':
-    init_db()
+# Initialize Database
+init_db()
+
+if __name__ == "__main__":
     main()
