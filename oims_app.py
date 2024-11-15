@@ -25,20 +25,23 @@ def init_db():
                         price REAL, 
                         supplier_id INTEGER)''')
 
-        # Populate inventory with sample SKUs if empty
-        sample_data = [
-            ("SKU1", 50, 10, 100.0, 1),
-            ("SKU2", 20, 5, 200.0, 1),
-            ("SKU3", 15, 5, 150.0, 2),
-            ("SKU4", 30, 10, 300.0, 2),
-            ("SKU5", 40, 15, 120.0, 3),
-            ("SKU6", 5, 2, 80.0, 3),
-            ("SKU7", 25, 8, 90.0, 4),
-            ("SKU8", 35, 10, 130.0, 4),
-            ("SKU9", 10, 3, 160.0, 5),
-            ("SKU10", 8, 4, 140.0, 5)
+        # Order tracking table
+        c.execute('''CREATE TABLE IF NOT EXISTS orders (
+                        order_id INTEGER PRIMARY KEY, 
+                        item_id INTEGER, 
+                        quantity INTEGER, 
+                        status TEXT, 
+                        FOREIGN KEY (item_id) REFERENCES inventory (item_id))''')
+
+        # Sample orders for testing
+        sample_orders = [
+            (1, 1, 5, "Processing"),
+            (2, 2, 3, "Shipped"),
+            (3, 3, 7, "In Transit"),
+            (4, 4, 2, "Delivered"),
+            (5, 5, 10, "Processing"),
         ]
-        c.executemany("INSERT OR IGNORE INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
+        c.executemany("INSERT OR IGNORE INTO orders (order_id, item_id, quantity, status) VALUES (?, ?, ?, ?)", sample_orders)
 
         conn.commit()
     except sqlite3.Error as e:
@@ -129,6 +132,31 @@ def update_inventory():
         # Refresh Low Stock Alerts Table
         low_stock_alerts()
 
+# Order Tracking Function
+def order_tracking():
+    st.subheader("Order Tracking System")
+    order_id = st.number_input("Enter Order ID to Track", min_value=1, step=1)
+
+    if st.button("Track Order"):
+        try:
+            conn = sqlite3.connect('inventory_management.db')
+            c = conn.cursor()
+            c.execute("SELECT order_id, item_id, quantity, status FROM orders WHERE order_id = ?", (order_id,))
+            order_data = c.fetchone()
+        except sqlite3.Error as e:
+            st.error(f"Error tracking order: {e}")
+        finally:
+            conn.close()
+
+        if order_data:
+            order_id, item_id, quantity, status = order_data
+            st.write(f"Order ID: {order_id}")
+            st.write(f"Item ID: {item_id}")
+            st.write(f"Quantity: {quantity}")
+            st.write(f"Status: {status}")
+        else:
+            st.warning("Order ID not found.")
+
 # Streamlit App
 def main():
     st.title("Online Inventory Management System")
@@ -164,7 +192,7 @@ def main():
         else:
             st.subheader("Inventory Management Dashboard")
             st.sidebar.write("## Functions")
-            functions = ["Low Stock Alerts", "Update Inventory"]
+            functions = ["Low Stock Alerts", "Update Inventory", "Order Tracking"]
             selected_function = st.sidebar.selectbox("Select Function", functions)
 
             if selected_function == "Low Stock Alerts":
@@ -172,6 +200,9 @@ def main():
 
             elif selected_function == "Update Inventory":
                 update_inventory()
+
+            elif selected_function == "Order Tracking":
+                order_tracking()
 
 # Initialize Database and Run App
 if __name__ == '__main__':
