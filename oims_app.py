@@ -2,272 +2,164 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 from hashlib import sha256
-import pandas as pd
-import os
-
-# Delete the existing database if it exists to avoid issues with outdated schema
-if os.path.exists('inventory_management.db'):
-    os.remove('inventory_management.db')
 
 # Database setup
 def init_db():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
+    conn = sqlite3.connect('toll_plaza.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY, 
+                    username TEXT, 
+                    password TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS tolls (
+                    id INTEGER PRIMARY KEY, 
+                    vehicle_number TEXT,
+                    lane TEXT, 
+                    vehicle_type TEXT, 
+                    toll_amount REAL, 
+                    payment_status TEXT, 
+                    date TEXT)''')
+    conn.commit()
+    conn.close()
 
-        # User table
-        c.execute('''CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY, 
-                        username TEXT UNIQUE, 
-                        password TEXT)''')
-
-        # Inventory table with sample SKUs
-        c.execute('''CREATE TABLE IF NOT EXISTS inventory (
-                        item_id INTEGER PRIMARY KEY, 
-                        item_name TEXT UNIQUE, 
-                        stock INTEGER, 
-                        threshold INTEGER, 
-                        price REAL, 
-                        supplier_id INTEGER)''')
-
-        # Create the orders table with order_date column
-        c.execute('''CREATE TABLE IF NOT EXISTS orders (
-                        order_id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                        item_id INTEGER, 
-                        quantity INTEGER, 
-                        order_date TEXT, 
-                        order_status TEXT,
-                        FOREIGN KEY(item_id) REFERENCES inventory(item_id))''')
-
-        # Populate inventory with sample SKUs if empty
-        sample_data = [
-            ("SKU1", 50, 10, 100.0, 1),
-            ("SKU2", 20, 5, 200.0, 1),
-            ("SKU3", 15, 5, 150.0, 2),
-            ("SKU4", 30, 10, 300.0, 2),
-            ("SKU5", 40, 15, 120.0, 3),
-            ("SKU6", 5, 2, 80.0, 3),
-            ("SKU7", 25, 8, 90.0, 4),
-            ("SKU8", 35, 10, 130.0, 4),
-            ("SKU9", 10, 3, 160.0, 5),
-            ("SKU10", 8, 4, 140.0, 5)
-        ]
-        c.executemany("INSERT OR IGNORE INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
-
-        conn.commit()
-    except sqlite3.Error as e:
-        st.error(f"Database error: {e}")
-    finally:
-        conn.close()
-
-# User management functions
 def register_user(username, password):
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        hashed_password = sha256(password.encode()).hexdigest()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
-        conn.commit()
-        st.success("User registered successfully!")
-    except sqlite3.Error as e:
-        st.error(f"Error during registration: {e}")
-    finally:
-        conn.close()
+    conn = sqlite3.connect('toll_plaza.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_password))
+    conn.commit()
+    conn.close()
 
 def login_user(username, password):
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        hashed_password = sha256(password.encode()).hexdigest()
-        c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
-        data = c.fetchone()
-        return data
-    except sqlite3.Error as e:
-        st.error(f"Error during login: {e}")
-    finally:
-        conn.close()
+    conn = sqlite3.connect('toll_plaza.db')
+    c = conn.cursor()
+    hashed_password = sha256(password.encode()).hexdigest()
+    c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_password))
+    data = c.fetchone()
+    conn.close()
+    return data
 
-# Low Stock Alert and Inventory Display
-def low_stock_alerts():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_id, item_name, stock, threshold FROM inventory")
-        data = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory data: {e}")
-        return
-    finally:
-        conn.close()
+# Toll Plaza Functionalities
 
-    st.subheader("Low Stock Alerts System")
-    st.write("Current stock levels and thresholds:")
+def toll_amount_calculation(vehicle_type):
+    rates = {'Car': 100, 'Truck': 200, 'Bike': 50}
+    return rates.get(vehicle_type, "Unknown Vehicle Type")
 
-    # Display data in a table format
-    df = pd.DataFrame(data, columns=["Item ID", "Item Name", "Stock", "Threshold"])
-    st.table(df)
+def assign_lane(vehicle_type):
+    lanes = {'Car': 'Lane 1', 'Truck': 'Lane 2', 'Bike': 'Lane 3'}
+    return lanes.get(vehicle_type, "General Lane")
 
-    # Show alerts for items below threshold
-    low_stock_items = df[df["Stock"] < df["Threshold"]]
-    for index, row in low_stock_items.iterrows():
-        st.error(f"Alert: {row['Item Name']} stock is below the threshold! Current stock: {row['Stock']}, Threshold: {row['Threshold']}")
+def lane_management(vehicle_number, vehicle_type):
+    lane = assign_lane(vehicle_type)
+    st.write(f"Vehicle {vehicle_number} of type {vehicle_type} is assigned to {lane}.")
+    return lane
 
-# Inventory Update Function
-def update_inventory():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_name, stock FROM inventory")
-        items = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory data: {e}")
-        return
-    finally:
-        conn.close()
+def toll_amount_payment(vehicle_number, vehicle_type):
+    amount = toll_amount_calculation(vehicle_type)
+    st.write(f"The toll amount for {vehicle_type} (Vehicle Number: {vehicle_number}) is ₹{amount}.")
+    if st.button("Proceed to Payment"):
+        # Simulate payment confirmation
+        st.success("Payment Successful!")
+        save_payment(vehicle_number, vehicle_type, amount, "Paid")
 
-    st.subheader("Update Inventory Stock Levels")
-    item_name = st.selectbox("Select an Item to Update Stock", [item[0] for item in items])
-    new_stock = st.number_input("New Stock Quantity", min_value=0, value=0)
+def save_payment(vehicle_number, vehicle_type, amount, status):
+    conn = sqlite3.connect('toll_plaza.db')
+    c = conn.cursor()
+    lane = assign_lane(vehicle_type)
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT INTO tolls (vehicle_number, lane, vehicle_type, toll_amount, payment_status, date) VALUES (?, ?, ?, ?, ?, ?)",
+              (vehicle_number, lane, vehicle_type, amount, status, date))
+    conn.commit()
+    conn.close()
 
-    if st.button("Update Stock"):
-        try:
-            conn = sqlite3.connect('inventory_management.db')
-            c = conn.cursor()
-            c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
-            conn.commit()
-            st.success(f"Stock for {item_name} updated to {new_stock}.")
-        except sqlite3.Error as e:
-            st.error(f"Error updating stock: {e}")
-        finally:
-            conn.close()
+def reporting_analysis():
+    conn = sqlite3.connect('toll_plaza.db')
+    c = conn.cursor()
+    c.execute("SELECT vehicle_type, COUNT(*), SUM(toll_amount) FROM tolls WHERE payment_status='Paid' GROUP BY vehicle_type")
+    data = c.fetchall()
+    conn.close()
 
-        # Refresh Low Stock Alerts Table
-        low_stock_alerts()
+    st.subheader("Toll Collection Report")
+    for vehicle_type, count, total_amount in data:
+        st.write(f"Vehicle Type: {vehicle_type}")
+        st.write(f"Total Vehicles: {count}")
+        st.write(f"Total Amount Collected: ₹{total_amount}")
+        st.write("---")
 
-# Place an order
-def place_order(item_name, quantity):
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
+# Streamlit App
 
-        # Fetch item_id from the inventory
-        c.execute("SELECT item_id, stock FROM inventory WHERE item_name = ?", (item_name,))
-        item = c.fetchone()
-
-        if item:
-            item_id, current_stock = item
-            if current_stock >= quantity:
-                # Update stock in the inventory
-                new_stock = current_stock - quantity
-                c.execute("UPDATE inventory SET stock = ? WHERE item_id = ?", (new_stock, item_id))
-                order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                c.execute("INSERT INTO orders (item_id, quantity, order_date, order_status) VALUES (?, ?, ?, ?)", 
-                          (item_id, quantity, order_date, "Pending"))
-                conn.commit()
-                st.success(f"Order placed for {quantity} of {item_name}.")
-            else:
-                st.warning("Insufficient stock for this order.")
-        else:
-            st.warning("Item not found in inventory.")
-    except sqlite3.Error as e:
-        st.error(f"Error placing order: {e}")
-    finally:
-        conn.close()
-
-# Track orders
-def track_orders():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT o.order_id, i.item_name, o.quantity, o.order_date, o.order_status "
-                  "FROM orders o JOIN inventory i ON o.item_id = i.item_id")
-        orders = c.fetchall()
-    except sqlite3.Error as e:
-        st.error(f"Error fetching order data: {e}")
-        return
-    finally:
-        conn.close()
-
-    st.subheader("Track Orders")
-    if orders:
-        df = pd.DataFrame(orders, columns=["Order ID", "Item Name", "Quantity", "Order Date", "Order Status"])
-        st.table(df)
-    else:
-        st.write("No orders found.")
-
-# Fetch inventory items
-def fetch_inventory():
-    try:
-        conn = sqlite3.connect('inventory_management.db')
-        c = conn.cursor()
-        c.execute("SELECT item_name FROM inventory")
-        inventory = c.fetchall()
-        return inventory
-    except sqlite3.Error as e:
-        st.error(f"Error fetching inventory: {e}")
-        return []
-    finally:
-        conn.close()
-
-# Dashboard Functionality
-def dashboard():
-    if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
-        st.warning("Please login first.")
-    else:
-        st.subheader("Inventory Management Dashboard")
-        st.sidebar.write("## Functions")
-        functions = ["Low Stock Alerts", "Update Inventory", "Place Order", "Track Orders"]
-        selected_function = st.sidebar.selectbox("Select Function", functions)
-
-        if selected_function == "Low Stock Alerts":
-            low_stock_alerts()
-
-        elif selected_function == "Update Inventory":
-            update_inventory()
-
-        elif selected_function == "Place Order":
-            st.subheader("Place an Order")
-            inventory_items = fetch_inventory()
-            item_name = st.selectbox("Select Item to Order", [item[0] for item in inventory_items])
-            quantity = st.number_input("Quantity", min_value=1, value=1)
-
-            if st.button("Place Order"):
-                place_order(item_name, quantity)
-
-        elif selected_function == "Track Orders":
-            track_orders()
-
-# Main app
 def main():
-    st.title("Inventory Management System")
-
+    st.title("Toll Plaza Management System")
+    st.sidebar.title("Navigation")
     menu = ["Login", "Register", "Dashboard"]
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Login":
+        st.subheader("Login Section")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
             user = login_user(username, password)
             if user:
+                st.success(f"Welcome {username}!")
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.success(f"Welcome back {username}!")
             else:
-                st.error("Invalid Username or Password")
+                st.warning("Incorrect Username/Password")
 
     elif choice == "Register":
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        st.subheader("Create a New Account")
+        new_user = st.text_input("Username")
+        new_password = st.text_input("Password", type="password")
         if st.button("Register"):
-            register_user(username, password)
+            register_user(new_user, new_password)
+            st.success("You have successfully created an account!")
+            st.info("Go to Login Menu to login")
 
     elif choice == "Dashboard":
-        dashboard()
+        if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
+            st.warning("Please login first.")
+        else:
+            st.subheader("Toll Plaza Management Dashboard")
+            st.sidebar.write("## Functions")
+            functions = [
+                "Toll Amount Calculation",
+                "Lane Management",
+                "User Account Management",
+                "Toll Amount Payment",
+                "Reporting and Analysis",
+                "Vehicle Management and Classification"
+            ]
+            selected_function = st.sidebar.selectbox("Select Function", functions)
 
-# Initialize database
-init_db()
+            if selected_function == "Toll Amount Calculation":
+                st.subheader("Toll Amount Calculation")
+                vehicle_type = st.selectbox("Select Vehicle Type", ["Car", "Truck", "Bike"])
+                if st.button("Calculate"):
+                    amount = toll_amount_calculation(vehicle_type)
+                    st.write(f"The toll amount for a {vehicle_type} is ₹{amount}.")
 
-# Run the main function
+            elif selected_function == "Lane Management":
+                st.subheader("Lane Management")
+                vehicle_number = st.text_input("Enter Vehicle Number")
+                vehicle_type = st.selectbox("Select Vehicle Type", ["Car", "Truck", "Bike"])
+                if st.button("Assign Lane"):
+                    lane = lane_management(vehicle_number, vehicle_type)
+                    st.write(f"Assigned Lane: {lane}")
+
+            elif selected_function == "Toll Amount Payment":
+                st.subheader("Toll Amount Payment")
+                vehicle_number = st.text_input("Enter Vehicle Number for Payment")
+                vehicle_type = st.selectbox("Select Vehicle Type for Payment", ["Car", "Truck", "Bike"])
+                toll_amount_payment(vehicle_number, vehicle_type)
+
+            elif selected_function == "Reporting and Analysis":
+                reporting_analysis()
+
+            elif selected_function == "Vehicle Management and Classification":
+                vehicle_management_classification()
+
+# Initialize Database and Run App
 if __name__ == '__main__':
+    init_db()
     main()
