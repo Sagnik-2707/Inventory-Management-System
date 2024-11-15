@@ -28,18 +28,18 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM inventory")
     if c.fetchone()[0] == 0:
         sample_data = [
-            ("SKU1", 50, 10, 100.0),
-            ("SKU2", 20, 5, 200.0),
-            ("SKU3", 15, 5, 150.0),
-            ("SKU4", 30, 10, 300.0),
-            ("SKU5", 40, 15, 120.0),
-            ("SKU6", 5, 2, 80.0),
-            ("SKU7", 25, 8, 90.0),
-            ("SKU8", 35, 10, 130.0),
-            ("SKU9", 10, 3, 160.0),
-            ("SKU10", 8, 4, 140.0)
+            ("SKU1", 50, 10, 100.0, 1),
+            ("SKU2", 20, 5, 200.0, 1),
+            ("SKU3", 15, 5, 150.0, 2),
+            ("SKU4", 30, 10, 300.0, 2),
+            ("SKU5", 40, 15, 120.0, 3),
+            ("SKU6", 5, 2, 80.0, 3),
+            ("SKU7", 25, 8, 90.0, 4),
+            ("SKU8", 35, 10, 130.0, 4),
+            ("SKU9", 10, 3, 160.0, 5),
+            ("SKU10", 8, 4, 140.0, 5)
         ]
-        c.executemany("INSERT INTO inventory (item_name, stock, threshold, price) VALUES (?, ?, ?, ?)", sample_data)
+        c.executemany("INSERT INTO inventory (item_name, stock, threshold, price, supplier_id) VALUES (?, ?, ?, ?, ?)", sample_data)
     conn.commit()
     conn.close()
 
@@ -101,7 +101,15 @@ def low_stock_alerts():
 
 def update_inventory():
     st.subheader("Update Inventory")
-    st.write("Functionality for updating inventory here...")
+    item_name = st.text_input("Item Name")
+    new_stock = st.number_input("New Stock Quantity", min_value=1)
+    if st.button("Update Inventory"):
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("UPDATE inventory SET stock = ? WHERE item_name = ?", (new_stock, item_name))
+        conn.commit()
+        conn.close()
+        st.success(f"Inventory updated for {item_name} with new stock quantity: {new_stock}")
 
 def order_tracking():
     st.subheader("Order Tracking")
