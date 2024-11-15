@@ -251,22 +251,24 @@ def main():
             if user:
                 st.session_state['logged_in'] = True
                 st.session_state['username'] = username
-                st.success("Login successful!")
+                st.success(f"Logged in as {username}")
+                st.experimental_rerun()  # Refresh to show dashboard
             else:
-                st.error("Invalid username or password.")
+                st.error("Invalid username or password")
 
     elif choice == "Register":
-        st.subheader("Create a New Account")
-        new_user = st.text_input("Username")
-        new_password = st.text_input("Password", type="password")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
         if st.button("Register"):
-            register_user(new_user, new_password)
-            st.success("Account created successfully! Please log in.")
+            register_user(username, password)
+            st.success("User registered successfully!")
 
     elif choice == "Dashboard":
         dashboard()
 
-# Initialize Database and Run App
+# Initialize the database
+init_db()
+
+# Run the app
 if __name__ == "__main__":
-    init_db()  # Initialize the database
     main()
