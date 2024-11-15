@@ -25,8 +25,8 @@ def init_db():
                         price REAL, 
                         supplier_id INTEGER)''')
 
-        # Orders table for tracking orders
-        c.execute('''CREATE TABLE IF NOT EXISTS orders (
+        # Create a new orders table with the correct schema
+        c.execute('''CREATE TABLE IF NOT EXISTS orders_new (
                         order_id INTEGER PRIMARY KEY AUTOINCREMENT, 
                         item_id INTEGER, 
                         quantity INTEGER, 
@@ -34,6 +34,15 @@ def init_db():
                         order_status TEXT,
                         FOREIGN KEY(item_id) REFERENCES inventory(item_id))''')
 
+        # Migrate data if needed
+        c.execute('''INSERT INTO orders_new (order_id, item_id, quantity, order_date, order_status)
+                     SELECT order_id, item_id, quantity, order_date, order_status FROM orders''')
+        conn.commit()
+
+        # Drop the old orders table and rename the new one
+        c.execute('''DROP TABLE IF EXISTS orders''')
+        c.execute('''ALTER TABLE orders_new RENAME TO orders''')
+        
         # Populate inventory with sample SKUs if empty
         sample_data = [
             ("SKU1", 50, 10, 100.0, 1),
@@ -224,25 +233,25 @@ def dashboard():
         elif selected_function == "Track Orders":
             track_orders()
 
-# Main Streamlit App
+# Main app
 def main():
-    st.title("Online Inventory Management System")
-    st.sidebar.title("Navigation")
+    st.title("Inventory Management System")
+
     menu = ["Login", "Register", "Dashboard"]
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Login":
-        st.subheader("Login Section")
+        st.subheader("Login to your Account")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
+
         if st.button("Login"):
             user = login_user(username, password)
             if user:
-                st.success(f"Welcome {username}!")
                 st.session_state['logged_in'] = True
-                st.session_state['username'] = username
+                st.success("Logged in successfully.")
             else:
-                st.warning("Incorrect Username/Password")
+                st.error("Invalid username or password.")
 
     elif choice == "Register":
         st.subheader("Create a New Account")
