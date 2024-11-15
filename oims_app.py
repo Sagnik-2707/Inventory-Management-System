@@ -251,14 +251,71 @@ def manage_suppliers():
     except sqlite3.Error as e:
         st.error(f"Error fetching supplier data: {e}")
 
-# Dashboard Functionality
+# Sales Reports and Analytics Functionality
+def sales_reports_and_analytics():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT item_name FROM inventory")
+        skus = [row[0] for row in c.fetchall()]
+        conn.close()
+
+        st.subheader("Sales Reports and Analytics")
+        selected_month = st.selectbox("Select Month", [f"{i:02}" for i in range(1, 13)])
+        selected_sku = st.selectbox("Select SKU", skus)
+
+        if st.button("View Report"):
+            try:
+                conn = sqlite3.connect('inventory_management.db')
+                c = conn.cursor()
+                c.execute("""
+                    SELECT 
+                        orders.order_date, 
+                        orders.quantity, 
+                        inventory.price
+                    FROM 
+                        orders
+                    JOIN 
+                        inventory 
+                    ON 
+                        orders.item_id = inventory.item_id
+                    WHERE 
+                        inventory.item_name = ? 
+                        AND strftime('%m', orders.order_date) = ?
+                """, (selected_sku, selected_month))
+                data = c.fetchall()
+                conn.close()
+
+                if data:
+                    df = pd.DataFrame(data, columns=["Order Date", "Quantity", "Price"])
+                    df["Sales"] = df["Quantity"] * df["Price"]
+                    st.write(f"Sales Report for {selected_sku} in Month {selected_month}")
+                    st.table(df)
+                    st.write("Total Quantity Sold:", df["Quantity"].sum())
+                    st.write("Total Sales:", df["Sales"].sum())
+                    st.line_chart(df[["Sales"]])
+                else:
+                    st.write(f"No sales data found for {selected_sku} in Month {selected_month}.")
+            except sqlite3.Error as e:
+                st.error(f"Error fetching sales data: {e}")
+    except sqlite3.Error as e:
+        st.error(f"Error fetching SKU data: {e}")
+
+# Dashboard Function
 def dashboard():
     if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
         st.error("Please log in to access the dashboard.")
         return
 
     st.sidebar.title("Dashboard Menu")
-    options = ["Current Stock Status", "Update Inventory", "Place Order", "Track Orders", "Manage Suppliers"]
+    options = [
+        "Current Stock Status", 
+        "Update Inventory", 
+        "Place Order", 
+        "Track Orders", 
+        "Manage Suppliers", 
+        "Sales Reports and Analytics"
+    ]
     choice = st.sidebar.radio("Select an Option", options)
 
     if choice == "Current Stock Status":
@@ -271,6 +328,8 @@ def dashboard():
         track_orders()
     elif choice == "Manage Suppliers":
         manage_suppliers()
+    elif choice == "Sales Reports and Analytics":
+        sales_reports_and_analytics()
 
 # Main Application
 def main():
