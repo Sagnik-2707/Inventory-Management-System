@@ -247,4 +247,14 @@ def main():
     elif choice == "Register":
         st.subheader("Create a New Account")
         new_user = st.text_input("Username")
-        new_password = st
+        new_password = st.text_input("Password", type="password")
+        if st.button("Register"):
+            register_user(new_user, new_password)
+            st.success("Account created successfully! Please log in.")
+
+    elif choice == "Dashboard":
+        dashboard()
+
+if __name__ == "__main__":
+    init_db()  # Initialize the database
+    main()
