@@ -194,6 +194,20 @@ def track_orders():
     else:
         st.write("No orders found.")
 
+# Fetch inventory items
+def fetch_inventory():
+    try:
+        conn = sqlite3.connect('inventory_management.db')
+        c = conn.cursor()
+        c.execute("SELECT item_name FROM inventory")
+        inventory = c.fetchall()
+        return inventory
+    except sqlite3.Error as e:
+        st.error(f"Error fetching inventory: {e}")
+        return []
+    finally:
+        conn.close()
+
 # Dashboard Functionality
 def dashboard():
     if 'logged_in' not in st.session_state or not st.session_state['logged_in']:
@@ -212,7 +226,8 @@ def dashboard():
 
         elif selected_function == "Place Order":
             st.subheader("Place an Order")
-            item_name = st.selectbox("Select Item to Order", [item[0] for item in fetch_inventory()])
+            inventory_items = fetch_inventory()
+            item_name = st.selectbox("Select Item to Order", [item[0] for item in inventory_items])
             quantity = st.number_input("Quantity", min_value=1, value=1)
 
             if st.button("Place Order"):
@@ -229,15 +244,14 @@ def main():
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Login":
-        st.subheader("Login to your Account")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
-
         if st.button("Login"):
             user = login_user(username, password)
             if user:
                 st.session_state['logged_in'] = True
-                st.success("Logged in successfully.")
+                st.session_state['username'] = username
+                st.success("Login successful!")
             else:
                 st.error("Invalid username or password.")
 
