@@ -98,8 +98,8 @@ def login_user(username, password):
     finally:
         conn.close()
 
-# Low Stock Alert and Inventory Display
-def low_stock_alerts():
+# Current Stock Status and Inventory Display
+def current_stock_status():
     try:
         conn = sqlite3.connect('inventory_management.db')
         c = conn.cursor()
@@ -111,7 +111,7 @@ def low_stock_alerts():
     finally:
         conn.close()
 
-    st.subheader("Low Stock Alerts System")
+    st.subheader("Current Stock Status")
     st.write("Current stock levels and thresholds:")
 
     # Display data in a table format
@@ -152,8 +152,8 @@ def update_inventory():
         finally:
             conn.close()
 
-        # Refresh Low Stock Alerts Table
-        low_stock_alerts()
+        # Refresh Current Stock Status Table
+        current_stock_status()
 
 # Supplier Management: Display and Edit Supplier Information
 def display_suppliers():
@@ -232,11 +232,11 @@ def dashboard():
     else:
         st.subheader("Inventory Management Dashboard")
         st.sidebar.write("## Functions")
-        functions = ["Low Stock Alerts", "Update Inventory", "Place Order", "Track Orders", "Manage Suppliers"]
+        functions = ["Current Stock Status", "Update Inventory", "Place Order", "Track Orders", "Manage Suppliers"]
         selected_function = st.sidebar.selectbox("Select Function", functions)
 
-        if selected_function == "Low Stock Alerts":
-            low_stock_alerts()
+        if selected_function == "Current Stock Status":
+            current_stock_status()
 
         elif selected_function == "Update Inventory":
             update_inventory()
@@ -253,18 +253,16 @@ def main():
     choice = st.sidebar.selectbox("Select Option", menu)
 
     if choice == "Login":
-        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Login"):
             if login_user(username, password):
                 st.session_state['logged_in'] = True
-                st.success("Logged in successfully!")
+                st.success("Login successful!")
             else:
-                st.error("Invalid credentials.")
-
+                st.error("Invalid username or password.")
+    
     elif choice == "Register":
-        st.subheader("Register")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.button("Register"):
@@ -273,8 +271,6 @@ def main():
     elif choice == "Dashboard":
         dashboard()
 
-# Initialize Database
-init_db()
-
-if __name__ == "__main__":
+if __name__ == '__main__':
+    init_db()  # Initialize the database
     main()
